@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Post;
+use App\Models\Tag;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -15,8 +16,13 @@ class PostController extends Controller
      */
     public function index()
     {
-        $posts = Post::with('author')->latest()->get();
-        return Inertia::render('Posts/Index', ['posts' => $posts]);
+        $posts = Post::with(['author', 'comments.user', 'likes', 'tags'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return Inertia::render('Posts/Index', [
+            'posts' => $posts,
+        ]);
     }
 
     /**
@@ -43,26 +49,36 @@ class PostController extends Controller
             'user_id' => Auth::id(),
         ]);
 
-        return redirect()->route('posts.index')->with('success', 'Post created successfully!');
+        return redirect()->route('home')->with('success', 'Post created successfully!');
     }
+
     /**
      * Display the specified resource.
      */
-    public function show(string $id)
+    public function show(Post $post)
     {
-        //
+        $post->load(['author', 'comments.user', 'likes', 'tags']);
+
+        return Inertia::render('Posts/Show', [
+            'post' => $post,
+        ]);
     }
 
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(Post $post, User $user)
+    public function edit(Post $post)
     {
-        return Inertia::render('Posts/Edit', [
-            'user' => $user,
-            'post' => $post,
-            'errors' => session()->get('errors') ? session()->get('errors')->getBag('default')->getMessages() : [],
-        ]);
+        if (Auth::user() && (Auth::user()->role === 'admin' || $post->user_id === Auth::id())) {
+            $post->load('tags');
+            return Inertia::render('Posts/Edit', [
+                'post' => $post,
+                'errors' => session()->get('errors') ? session()->get('errors')->getBag('default')->getMessages() : [],
+                'allTags' => Tag::all(),
+            ]);
+        }
+
+        return redirect()->back()->with('error', 'You are not authorized to edit this post.');
     }
 
     /**
@@ -70,26 +86,25 @@ class PostController extends Controller
      */
     public function update(Request $request, Post $post)
     {
-        if (Auth::user()->role === 'admin' || $post->user_id === Auth::id()) {
-            $request->validate([
-                'title' => 'required|string|max:255',
-                'content' => 'required|string',
-            ]);
-
-            $post->update([
-                'title' => $request->title,
-                'content' => $request->content,
-            ]);
-
-            return redirect()->route('posts.index')->with([
-                'message' => 'Post edited successfully.',
-                'type' => 'success'
-            ]);
-        }
-        return redirect()->back()->with([
-            'message' => 'You are not authorized to delete this post.',
-            'type' => 'error'
+        $request->validate([
+            'title' => 'required|string|max:255',
+            'content' => 'required|string',
+            'tags' => 'array',
+            'tags.*' => 'string|max:255',
         ]);
+
+        $post->update([
+            'title' => $request->input('title'),
+            'content' => $request->input('content'),
+        ]);
+
+        $tags = collect($request->input('tags'))->map(function ($tagName) {
+            return Tag::firstOrCreate(['name' => $tagName])->id;
+        });
+
+        $post->tags()->sync($tags);
+
+        return redirect()->route('posts.index')->with('success', 'Post updated successfully!');
     }
 
     /**
@@ -97,34 +112,40 @@ class PostController extends Controller
      */
     public function destroy(Post $post)
     {
-        // if (Auth::user()->role === 'admin' || $post->user_id === Auth::id()) {
-        //     $post->delete();
-        //     return response()->json([
-        //         'message' => 'Post deleted successfully.',
-        //         'type' => 'success',
-        //     ], 200); 
-        // }
-
-        // return response()->json([
-        //     'message' => 'You are not authorized to delete this post.',
-        //     'type' => 'error',
-        // ], 403); 
-
-        // {
-        //     if (Auth::user()->role === 'admin' || $post->user_id === Auth::id()) {
-        //         $post->delete();
-        //         return response()->noContent(); // 204 status code (success)
-        //     }
-
-        //     return response()->json(['error' => 'You are not authorized to delete this post.'], 403); // 403 status code (error)
-        // }
-
-
-        if (Auth::user()->role === 'admin' || $post->author_id === Auth::id()) {
+        if (Auth::user() && (Auth::user()->role === 'admin' || $post->user_id === Auth::id())) {
             $post->delete();
-            return redirect()->route('posts.index')->with('success', 'Post deleted successfully.');
+            return redirect()->route('home')->with('success', 'Post deleted successfully.');
         }
-
         return redirect()->back()->with('error', 'You are not authorized to delete this post.');
+    }
+
+    /**
+     * Display all posts by a specific user.
+     */
+    public function userPosts(User $user)
+    {
+        $posts = $user->posts()->with(['author', 'comments.user', 'likes', 'tags'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return Inertia::render('Posts/UserPosts', [
+            'posts' => $posts,
+            'user' => $user,
+        ]);
+    }
+
+    /**
+     * Display all posts with a specific tag.
+     */
+    public function tagPosts(Tag $tag)
+    {
+        $posts = $tag->posts()->with(['author', 'comments.user', 'likes', 'tags'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return Inertia::render('Posts/TagPosts', [
+            'posts' => $posts,
+            'tag' => $tag,
+        ]);
     }
 }

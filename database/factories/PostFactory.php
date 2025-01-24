@@ -13,7 +13,7 @@ class PostFactory extends Factory
             'title' => $this->faker->sentence(),
             'content' => $this->faker->paragraph(10),
             'user_id' => User::factory(),
-            'likes' => $this->faker->numberBetween(0, 100),
+            'likes' => 0,
         ];
     }
 }

@@ -30,7 +30,7 @@ export default {
     },
   },
   setup(props) {
-    console.log('Props:', props); // Debugging: Log the props object
+    
 
     const form = useForm({
       title: '',

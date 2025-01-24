@@ -5,14 +5,18 @@ import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, useForm, } from '@inertiajs/vue3';
 
-defineProps({
+const props= defineProps({
     canResetPassword: {
         type: Boolean,
     },
     status: {
         type: String,
+    },
+    redirect: {
+        type: String,
+        default: '',
     },
 });
 
@@ -20,6 +24,7 @@ const form = useForm({
     email: '',
     password: '',
     remember: false,
+    redirect: props.redirect,
 });
 
 const submit = () => {
@@ -38,6 +43,8 @@ const submit = () => {
         </div>
 
         <form @submit.prevent="submit">
+            <input type="hidden" name="redirect" :value="form.redirect" />
+
             <div>
                 <InputLabel for="email" value="Email" />
 
@@ -85,6 +92,13 @@ const submit = () => {
                     class="rounded-md text-sm text-gray-600 underline hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
                 >
                     Forgot your password?
+                </Link>
+                
+                <Link
+                    class="ml-4 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-widest text-gray-700 shadow-sm transition duration-150 ease-in-out hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-25"
+                    :href="route('register')"
+                >
+                    Register
                 </Link>
 
                 <PrimaryButton
