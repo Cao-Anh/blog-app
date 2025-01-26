@@ -1,7 +1,9 @@
 <?php
+
 namespace Database\Seeders;
 
 use App\Models\Comment;
+use App\Models\Image;
 use App\Models\Post;
 use App\Models\Tag;
 use App\Models\User;
@@ -9,15 +11,11 @@ use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     *
-     * @return void
-     */
     public function run(): void
     {
         // Create 10 tags
         Tag::factory(10)->create();
+
         // Create 10 users
         User::factory(10)->create()->each(function ($user) {
             // Create 3 posts for each user
@@ -36,9 +34,12 @@ class DatabaseSeeder extends Seeder
                 // Attach 1 to 3 random tags to each post
                 $tags = Tag::inRandomOrder()->take(rand(1, 3))->pluck('id');
                 $post->tags()->attach($tags);
+
+                // Create 1 to 3 images for each post
+                Image::factory(rand(1, 3))->create([
+                    'post_id' => $post->id,
+                ]);
             });
         });
-
-        
     }
 }

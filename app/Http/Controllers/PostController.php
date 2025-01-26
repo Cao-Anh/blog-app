@@ -7,66 +7,62 @@ use App\Models\Tag;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 class PostController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
-        $posts = Post::with(['author', 'comments.user', 'likes', 'tags'])
+        $posts = Post::with(['author', 'comments.user', 'likes', 'tags', 'images'])
             ->orderBy('created_at', 'desc')
             ->get();
 
         return Inertia::render('Posts/Index', [
             'posts' => $posts,
+            'allTags' => Tag::all(),
         ]);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create()
     {
         return Inertia::render('Posts/Create');
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
+
     public function store(Request $request)
     {
         $request->validate([
             'title' => 'required|string|max:255',
             'content' => 'required|string',
+            'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
 
-        Post::create([
+        $post = Post::create([
             'title' => $request->title,
             'content' => $request->content,
             'user_id' => Auth::id(),
         ]);
 
+        if ($request->hasFile('images')) {
+            foreach ($request->file('images') as $image) {
+                $path = $image->store('posts', 'public');
+                $post->images()->create(['path' => $path]);
+            }
+        }
+
         return redirect()->route('home')->with('success', 'Post created successfully!');
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show(Post $post)
     {
-        $post->load(['author', 'comments.user', 'likes', 'tags']);
+        $post->load(['author', 'comments.user', 'likes', 'tags', 'images']);
 
         return Inertia::render('Posts/Show', [
             'post' => $post,
         ]);
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
     public function edit(Post $post)
     {
         if (Auth::user() && (Auth::user()->role === 'admin' || $post->user_id === Auth::id())) {
@@ -81,9 +77,6 @@ class PostController extends Controller
         return redirect()->back()->with('error', 'You are not authorized to edit this post.');
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, Post $post)
     {
         $request->validate([
@@ -91,6 +84,7 @@ class PostController extends Controller
             'content' => 'required|string',
             'tags' => 'array',
             'tags.*' => 'string|max:255',
+            'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
 
         $post->update([
@@ -101,30 +95,38 @@ class PostController extends Controller
         $tags = collect($request->input('tags'))->map(function ($tagName) {
             return Tag::firstOrCreate(['name' => $tagName])->id;
         });
-
         $post->tags()->sync($tags);
+
+        if ($request->hasFile('images')) {
+            foreach ($post->images as $image) {
+                Storage::disk('public')->delete($image->path);
+                $image->delete();
+            }
+            foreach ($request->file('images') as $image) {
+                $path = $image->store('posts', 'public');
+                $post->images()->create(['path' => $path]);
+            }
+        }
 
         return redirect()->route('posts.index')->with('success', 'Post updated successfully!');
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy(Post $post)
     {
         if (Auth::user() && (Auth::user()->role === 'admin' || $post->user_id === Auth::id())) {
+            foreach ($post->images as $image) {
+                Storage::disk('public')->delete($image->path);
+            }
             $post->delete();
             return redirect()->route('home')->with('success', 'Post deleted successfully.');
         }
+
         return redirect()->back()->with('error', 'You are not authorized to delete this post.');
     }
 
-    /**
-     * Display all posts by a specific user.
-     */
     public function userPosts(User $user)
     {
-        $posts = $user->posts()->with(['author', 'comments.user', 'likes', 'tags'])
+        $posts = $user->posts()->with(['author', 'comments.user', 'likes', 'tags', 'images'])
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -134,12 +136,9 @@ class PostController extends Controller
         ]);
     }
 
-    /**
-     * Display all posts with a specific tag.
-     */
     public function tagPosts(Tag $tag)
     {
-        $posts = $tag->posts()->with(['author', 'comments.user', 'likes', 'tags'])
+        $posts = $tag->posts()->with(['author', 'comments.user', 'likes', 'tags', 'images'])
             ->orderBy('created_at', 'desc')
             ->get();
 

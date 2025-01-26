@@ -45,7 +45,7 @@ return new class extends Migration
         $table->string('email')->unique(); // Unique email
         $table->timestamp('email_verified_at')->nullable(); // For email verification
         $table->string('password'); // Hashed password
-        $table->string('profile_picture')->nullable(); // URL to profile picture
+        $table->string('profile_picture')->default('users/default-image.png'); // URL to profile picture
         $table->text('bio')->nullable(); // Optional biography
         $table->enum('role', ['admin', 'user'])->default('user'); 
         $table->boolean('is_active')->default(true); // Account active status

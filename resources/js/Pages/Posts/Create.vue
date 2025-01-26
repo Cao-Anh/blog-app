@@ -30,7 +30,7 @@ export default {
     },
   },
   setup(props) {
-    
+
 
     const form = useForm({
       title: '',

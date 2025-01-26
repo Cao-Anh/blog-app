@@ -20,12 +20,7 @@ Route::get('/welcome', function () {
 
 Route::get('/', [PostController::class, 'index'])->name('home');
 Route::get('/posts', [PostController::class, 'index'])->name('posts.index');
-// single post route
-Route::get('/posts/{post}', [PostController::class, 'show'])->name('posts.show');
-// posts of a user route
-Route::get('/users/{user}/posts', [PostController::class, 'userPosts'])->name('users.posts');
-// posts of a tag
-Route::get('/tags/{tag}/posts', [PostController::class, 'tagPosts'])->name('tags.posts');
+
 
 Route::get('register', function(){
     return Inertia::render('Register');
@@ -34,6 +29,7 @@ Route::get('register', function(){
 Route::get('/dashboard', function () {
     return Inertia::render('Dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
+
 
 // Protected routes (require authentication)
 Route::middleware('auth')->group(function () {
@@ -57,6 +53,13 @@ Route::middleware('auth')->group(function () {
     //Like routes
     Route::post('/posts/{post}/like', [LikeController::class, 'toggleLike'])->name('posts.like');
 });
+
+// single post route
+Route::get('/posts/{post}', [PostController::class, 'show'])->name('posts.show');
+// posts of a user route
+Route::get('/users/{user}/posts', [PostController::class, 'userPosts'])->name('users.posts');
+// posts of a tag
+Route::get('/tags/{tag}/posts', [PostController::class, 'tagPosts'])->name('tags.posts');
 
 // Authentication routes (from Laravel Breeze)
 require __DIR__.'/auth.php';
