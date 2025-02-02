@@ -49,6 +49,8 @@ class User extends Authenticatable
     {
         return $this->hasMany(Like::class, 'user_id');
     }
+    public function notifications()
+    {
+        return $this->hasMany(Notification::class)->orderByDesc('created_at');
+    }
 }
-
-

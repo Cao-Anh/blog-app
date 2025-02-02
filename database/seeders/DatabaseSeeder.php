@@ -7,6 +7,7 @@ use App\Models\Image;
 use App\Models\Post;
 use App\Models\Tag;
 use App\Models\User;
+use App\Models\Notification; // Import the Notification model
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
@@ -41,5 +42,25 @@ class DatabaseSeeder extends Seeder
                 ]);
             });
         });
+
+        // Seed notifications
+        $this->seedNotifications();
+    }
+
+    private function seedNotifications()
+    {
+        // Get all posts
+        $posts = Post::all();
+
+        // Loop through each post and create notifications
+        foreach ($posts as $post) {
+            // Generate 1 to 5 notifications per post
+            $notificationCount = rand(1, 5);
+            Notification::factory($notificationCount)->create([
+                'notifiable_id' => $post->id,
+                'notifiable_type' => Post::class,
+                'user_id' => $post->user_id, // Notify the post author
+            ]);
+        }
     }
 }

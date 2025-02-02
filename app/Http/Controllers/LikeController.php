@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Like;
 use App\Models\Post;
+use App\Models\Notification;
+use App\Events\PostLiked; 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -22,10 +24,23 @@ class LikeController extends Controller
             $like->delete();
             return response()->json(['message' => 'Post unliked successfully.', 'liked' => false]);
         } else {
+            
             Like::create([
                 'post_id' => $post->id,
                 'user_id' => $user->id,
             ]);
+
+            
+            $notification = Notification::create([
+                'user_id' => $post->user_id, 
+                'notifiable_id' => $post->id,
+                'notifiable_type' => Post::class,
+                'type' => 'like',
+                'read' => false,
+            ]);
+
+            event(new PostLiked($notification));
+
             return response()->json(['message' => 'Post liked successfully.', 'liked' => true]);
         }
     }

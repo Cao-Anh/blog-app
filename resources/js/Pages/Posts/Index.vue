@@ -5,17 +5,17 @@
       <div class="navbar-left">
         <!-- Logo -->
         <img src="/images/laravel-logo.png" alt="Laravel Logo" class="logo" />
-        <!-- Home Button -->
-        <button @click="navigateToHome" class="icon-button">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+      </div>
+
+      <!-- Search Bar and Home Button -->
+
+      <div class="search-bar">
+        <button @click="navigateToHome" class="icon-button mr-10">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="30" height="30">
             <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
           </svg>
         </button>
-      </div>
-
-      <!-- Search Bar -->
-      <div class="search-bar">
-        <input type="text" v-model="searchQuery" placeholder="Search..." />
+        <input type="text" v-model="searchQuery" @keyup.enter="performSearch" placeholder="Search..." />
         <button @click="performSearch" class="icon-button">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
             <path
@@ -34,6 +34,19 @@
           </svg>
           <span v-if="unreadNotifications > 0" class="notification-badge">{{ unreadNotifications }}</span>
         </button>
+
+        <!-- Notification Dropdown -->
+        <div v-if="isNotificationDropdownOpen" class="notification-dropdown">
+
+          <div v-if="notifications.length === 0" class="notification-item">
+            <p>Nothing to show.</p>
+          </div>
+          <div v-else v-for="notification in notifications" :key="notification.id" class="notification-item">
+            <p v-if="notification.type === 'like'">Someone liked your post.</p>
+            <p v-else-if="notification.type === 'comment'">Someone commented on your post.</p>
+            <small>{{ formatDate(notification.created_at) }}</small>
+          </div>
+        </div>
 
         <!-- User Login/Name -->
         <div v-if="$page.props.auth.user" class="user-section">
@@ -58,9 +71,11 @@
         <h1>Posts</h1>
         <button @click="createNewPost" class="btn">Create New Post</button>
 
-        <div v-for="post in posts" :key="post.id" class="post">
+        <div v-for="post in visiblePosts" :key="post.id" class="post">
           <!-- Admin Actions (Top Right) -->
-          <div v-if="$page.props.auth.user && $page.props.auth.user.role === 'admin'" class="admin-actions">
+          <div
+            v-if="$page.props.auth.user && ($page.props.auth.user.id === post.user_id || $page.props.auth.user.role === 'admin')"
+            class="admin-actions">
             <button @click="editPost(post)" class="icon-button">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16">
                 <path
@@ -77,7 +92,10 @@
 
           <!-- Author Section -->
           <div class="author-section">
-            <img :src="`/storage/${post.author.profile_picture}`" alt="Profile Picture" class="profile-picture" />
+            <img
+              :src="post.author?.profile_picture ? `/storage/${post.author.profile_picture}` : '/images/default-profile.png'"
+              alt="Profile Picture" class="profile-picture" />
+
             <div class="author-info">
               <span class="author-name">{{ post.author.name }}</span>
               <span class="timestamp">{{ formatDate(post.created_at) }}</span>
@@ -86,8 +104,18 @@
 
           <!-- Post Content -->
           <div class="post-content">
-            <p>{{ post.title }}</p>
-            <p>{{ post.body }}</p>
+            <p class="font-bold m">{{ post.title }}</p>
+            <p>{{ truncatedText(post.content, post.id) }}
+              <button class="text-blue-500" v-if="showSeeMoreButton(post.content, post.id)"
+                @click="toggleText(post.id)">
+                See more
+              </button>
+              <button class="text-blue-500" v-if="showSeeLessButton(post.content, post.id)"
+                @click="toggleText(post.id)">
+                Show Less
+              </button>
+            </p>
+
           </div>
 
           <!-- Tags -->
@@ -96,9 +124,27 @@
           </div>
 
           <!-- Images -->
-          <div v-if="post.images.length > 0" class="post-images">
-            <img v-for="image in post.images" :key="image.id" :src="`/storage/${image.path}`" alt="Post Image"
-              class="image" />
+          <div class="post-images">
+            <div v-if="post.images.length > 0" class="folded-images">
+              <!-- Show First Image -->
+              <img :src="`/storage/${post.images[0].path}`" alt="Post Image" class="image w-auto h-56"
+                @click="openImageModal(post, 0)" />
+
+              <!-- Additional Images Overlay -->
+              <div v-if="post.images.length > 1" class="extra-images-overlay" @click="openImageModal(post, 1)">
+                +{{ post.images.length - 1 }}
+              </div>
+            </div>
+          </div>
+
+          <!-- Modal for Full-Screen View -->
+          <div v-if="isModalOpen" class="image-modal" @click.self="closeImageModal">
+            <button class="close-modal" @click="closeImageModal">✕</button>
+            <img :src="currentImage" alt="Current Image" class="modal-image" />
+            <button v-if="currentImageIndex > 0" class="nav-button prev" @click="prevImage">‹</button>
+            <button v-if="currentImageIndex < modalImages.length - 1" class="nav-button next" @click="nextImage">
+              ›
+            </button>
           </div>
 
           <!-- Like and Comment Section -->
@@ -139,6 +185,8 @@
             </div>
           </div>
         </div>
+        <div v-if="isLoading" class="loading">Loading more posts...</div>
+        <div v-if="currentPage >= lastPage" class="no-more-posts">No more posts to load.</div>
       </div>
     </div>
   </div>
@@ -150,37 +198,80 @@ import Toastify from 'toastify-js';
 import 'toastify-js/src/toastify.css';
 import Swal from 'sweetalert2';
 import axios from 'axios';
+import { reactive } from 'vue';
 
 export default {
   components: { Link },
   props: {
-    posts: Array,
-    allTags: Array, // Add allTags as a prop
+    posts: Object, // Paginated posts from the backend
+    allTags: Array,
   },
   data() {
     return {
       searchQuery: '',
-      unreadNotifications: 0, // Placeholder for notification count
+      isNotificationDropdownOpen: false,
+      notifications: [],
+      unreadNotifications: 0,
+
+      currentPage: this.posts.current_page,
+      lastPage: this.posts.last_page,
+      visiblePosts: this.posts.data,
+      isLoading: false,
+
+      isModalOpen: false,
+      modalImages: [],
+      currentImage: "",
+      currentImageIndex: 0,
+
+
+
+      maxLength: 50,
+      expandedPosts: reactive({}),
     };
   },
   created() {
-    this.posts.forEach(post => {
+    this.posts.data.forEach(post => {
       post.commentContent = '';
-      post.showComments = false; // Add a flag to toggle comment section
+      post.showComments = false;
     });
   },
+
   methods: {
     navigateToHome() {
       this.$inertia.visit('/');
     },
     performSearch() {
-      // Implement search functionality
-      console.log('Searching for:', this.searchQuery);
+      if (!this.searchQuery.trim()) {
+        this.visiblePosts = this.posts.data;
+        return;
+      }
+
+      this.isLoading = true;
+
+      axios
+        .get('/posts/search', {
+          params: {
+            query: this.searchQuery,
+          },
+        })
+        .then((response) => {
+          this.visiblePosts = response.data.data;
+          this.currentPage = response.data.current_page;
+          this.lastPage = response.data.last_page;
+        })
+        .catch((error) => {
+          console.error('Error performing search:', error);
+          Swal.fire({
+            title: 'Error',
+            text: 'Failed to perform the search. Please try again.',
+            icon: 'error',
+          });
+        })
+        .finally(() => {
+          this.isLoading = false;
+        });
     },
-    showNotifications() {
-      // Implement notification functionality
-      console.log('Showing notifications');
-    },
+
     navigateToLogin() {
       this.$inertia.visit(route('login', { redirect: this.currentUrl }));
     },
@@ -229,9 +320,31 @@ export default {
         });
       }
     },
-    deleteComment(comment) {
-      this.$inertia.delete(route('comments.destroy', comment.id));
+    async deleteComment(comment) {
+      try {
+        const url = route('comments.destroy', comment.id);
+        console.log('Delete URL:', url); // Log the URL
+
+        await axios.delete(url);
+
+        // Find the post containing the comment and remove the comment from its array
+        console.log(this.posts);
+        const post = this.posts.data.find(p => p.comments.some(c => c.id === comment.id));
+        if (post) {
+          post.comments = post.comments.filter(c => c.id !== comment.id);
+        }
+      } catch (error) {
+        console.error('Error deleting comment:', error);
+        Swal.fire({
+          title: 'Error',
+          text: 'Failed to delete the comment. Please try again.',
+          icon: 'error',
+        });
+      }
     },
+    // deleteComment(comment) {
+    //   this.$inertia.delete(route('comments.destroy', comment.id));
+    // },
     async toggleLike(post) {
       if (!this.$page.props.auth.user) {
         Swal.fire({
@@ -281,7 +394,7 @@ export default {
     },
     editPost(post) {
       const currentUser = this.$page.props.auth.user;
-      if (currentUser && (currentUser.role === 'admin' || post.author_id === currentUser.id)) {
+      if (currentUser && (currentUser.role === 'admin' || post.user_id === currentUser.id)) {
         router.visit(`/posts/${post.id}/edit`);
       } else {
         Toastify({
@@ -299,9 +412,226 @@ export default {
         this.$inertia.delete(`/posts/${id}`);
       }
     },
+    async loadMorePosts() {
+      if (this.currentPage >= this.lastPage || this.isLoading) {
+        return; // Stop if no more pages or already loading
+      }
+
+      this.isLoading = true;
+
+      try {
+        const nextPage = this.currentPage + 1;
+        const response = await axios.get(`/posts?page=${nextPage}`);
+
+        console.log('API Response:', response);
+        if (Array.isArray(response.data.data)) {
+          this.visiblePosts = [...this.visiblePosts, ...response.data.data];
+          this.currentPage = nextPage;
+        } else {
+          console.error('Unexpected response structure:', response.data);
+        }
+      } catch (error) {
+        console.error('Error loading more posts:', error);
+      } finally {
+        this.isLoading = false;
+      }
+    },
+    handleScroll() {
+      const bottomOfWindow =
+        document.documentElement.scrollTop + window.innerHeight >=
+        document.documentElement.offsetHeight - 100; // Load before reaching the bottom
+
+      if (bottomOfWindow) {
+        this.loadMorePosts();
+      }
+    },
+    //handle show images modal
+    openImageModal(post, index) {
+      this.modalImages = post.images.map((image) => `/storage/${image.path}`);
+      this.currentImageIndex = index;
+      this.currentImage = this.modalImages[index];
+      this.isModalOpen = true;
+      window.addEventListener("keydown", this.handleKeydown);
+    },
+    closeImageModal() {
+      this.isModalOpen = false;
+      this.modalImages = [];
+      this.currentImage = "";
+      this.currentImageIndex = 0;
+      window.removeEventListener("keydown", this.handleKeydown);
+    },
+    prevImage() {
+      if (this.currentImageIndex > 0) {
+        this.currentImageIndex -= 1;
+        this.currentImage = this.modalImages[this.currentImageIndex];
+      }
+    },
+    nextImage() {
+      if (this.currentImageIndex < this.modalImages.length - 1) {
+        this.currentImageIndex += 1;
+        this.currentImage = this.modalImages[this.currentImageIndex];
+      }
+    },
+    handleKeydown(event) {
+      if (this.isModalOpen) {
+        switch (event.key) {
+          case "ArrowLeft":
+            this.prevImage();
+            break;
+          case "ArrowRight":
+            this.nextImage();
+            break;
+          case "Escape":
+            this.closeImageModal();
+            break;
+          default:
+            break;
+        }
+      }
+    },
+    // handle showing content of posts
+
+    toggleText(postId) {
+      this.expandedPosts[postId] = !this.expandedPosts[postId];
+    },
+    truncatedText(fullText, postId) {
+      if (this.expandedPosts[postId] || fullText.length <= this.maxLength) {
+        return fullText;
+      } else {
+        return fullText.slice(0, this.maxLength) + "...";
+      }
+    },
+    showSeeMoreButton(fullText, postId) {
+      return fullText.length > this.maxLength && !this.expandedPosts[postId];
+    },
+    showSeeLessButton(fullText, postId) {
+      return fullText.length > this.maxLength && this.expandedPosts[postId];
+    },
+    performSearch() {
+      if (!this.searchQuery.trim()) {
+        this.visiblePosts = this.posts.data;
+        return;
+      }
+
+      this.isLoading = true;
+
+      axios
+        .get('/posts/search', {
+          params: {
+            query: this.searchQuery,
+          },
+        })
+        .then((response) => {
+          this.visiblePosts = response.data.data;
+          this.currentPage = response.data.current_page;
+          this.lastPage = response.data.last_page;
+        })
+        .catch((error) => {
+          console.error('Error performing search:', error);
+          Swal.fire({
+            title: 'Error',
+            text: 'Failed to perform the search. Please try again.',
+            icon: 'error',
+          });
+        })
+        .finally(() => {
+          this.isLoading = false;
+        });
+    },
+
+    // handle notifications
+    showNotifications() {
+      const currentUser = this.$page.props.auth.user;
+      if (!currentUser) {
+        Swal.fire({
+          title: 'Login Required',
+          text: 'Log in to see your notifications. Do you want to log in now?',
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonText: 'Yes, log in',
+          cancelButtonText: 'Cancel',
+        }).then((result) => {
+          if (result.isConfirmed) {
+            this.$inertia.visit(route('login'));
+          }
+        });
+      } else {
+        this.toggleNotificationDropdown(); // Toggle the dropdown
+        this.markNotificationsAsRead();
+      }
+
+    },
+    fetchNotifications(userId) {
+      axios.get(`/api/notifications?user_id=${userId}`)
+        .then(response => {
+          console.log("API Response:", response.data); // Log the full response
+          this.notifications = [...response.data]; // Assign the notifications array
+          console.log("Updated Notifications:", this.notifications); // Verify the assignment
+          this.unreadNotifications = this.notifications.filter(n => !n.read).length;
+          console.log(this.unreadNotifications);
+        })
+        .catch(error => {
+          console.error("Error fetching notifications:", error);
+          this.notifications = [];
+        });
+    },
+    markNotificationsAsRead() {
+      const currentUser = this.$page.props.auth.user;
+      if (!currentUser) {
+        console.warn("User is not authenticated.");
+        return;
+      }
+
+      axios.post('/api/notifications/mark-as-read', { user_id: currentUser.id })
+        .then(() => {
+          if (Array.isArray(this.notifications)) {
+            this.notifications.forEach(n => n.read = true);
+            this.unreadNotifications = 0;
+          } else {
+            console.warn("Notifications array is not defined.");
+          }
+        })
+        .catch(error => {
+          console.error("Error marking notifications as read:", error);
+        });
+    },
+    toggleNotificationDropdown() {
+      this.isNotificationDropdownOpen = !this.isNotificationDropdownOpen;
+    },
   },
   mounted() {
-    this.currentUrl = window.location.href;
+    const currentUser = this.$page.props.auth.user;
+    if (currentUser) {
+      console.log(`Listening for notifications on: notifications.${currentUser.id}`);
+
+      window.Echo.private(`notifications.${currentUser.id}`)
+        .listen('.comment.added', (e) => {
+          console.log('Received Comment Notification:', e); // Debugging log
+          if (e.notification) {
+            this.notifications.unshift(e.notification);
+            this.unreadNotifications++;
+          } else {
+            console.warn("Received event, but no notification data.");
+          }
+        })
+        .listen('.post.liked', (e) => {
+          console.log('Received Like Notification:', e); // Debugging log
+          if (e.notification) {
+            this.notifications.unshift(e.notification);
+            this.unreadNotifications++;
+          } else {
+            console.warn("Received event, but no notification data.");
+          }
+        });
+    } else {
+      console.warn("Log in to check your notifications.");
+    }
+
+    window.addEventListener('scroll', this.handleScroll);
+  },
+
+  beforeDestroy() {
+    window.removeEventListener('scroll', this.handleScroll);
   },
 };
 </script>
@@ -361,14 +691,35 @@ export default {
 }
 
 .notification-badge {
-  background: #f44336;
-  color: #fff;
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: red;
+  color: white;
   border-radius: 50%;
   padding: 2px 6px;
-  font-size: 0.8em;
+  font-size: 10px;
+}
+
+.notification-dropdown {
   position: absolute;
-  top: -8px;
-  right: -8px;
+  top: 100%;
+  right: 0;
+  background: white;
+  border: 1px solid #ccc;
+  width: 300px;
+  max-height: 400px;
+  overflow-y: auto;
+  z-index: 1000;
+}
+
+.notification-item {
+  padding: 10px;
+  border-bottom: 1px solid #eee;
+}
+
+.notification-item:last-child {
+  border-bottom: none;
 }
 
 .user-section {
@@ -446,6 +797,7 @@ export default {
 /* Existing Post Styles (unchanged) */
 .post-list {
   max-width: 600px;
+  min-width: 450px;
   margin: 0 auto;
 }
 
@@ -572,6 +924,7 @@ export default {
 .delete-button svg {
   fill: currentColor;
 }
+
 .icon-button {
   background: none;
   border: none;
@@ -587,7 +940,95 @@ export default {
 .icon-button:hover {
   color: #1877f2;
 }
+
 .icon-button svg {
   fill: currentColor;
+}
+
+.loading,
+.no-more-posts {
+  text-align: center;
+  padding: 16px;
+  font-size: 0.9em;
+  color: #666;
+}
+
+/* Post Images */
+.folded-images {
+  position: relative;
+  display: inline-block;
+}
+
+.image {
+  width: 100%;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.extra-images-overlay {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: 1.5em;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/* Modal Styles */
+.image-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-image {
+  max-width: 90%;
+  max-height: 80%;
+  border-radius: 8px;
+}
+
+.close-modal {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 2em;
+  cursor: pointer;
+}
+
+.nav-button {
+  position: absolute;
+  top: 50%;
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 10em;
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.prev {
+  left: 30px;
+}
+
+.next {
+  right: 30px;
 }
 </style>
