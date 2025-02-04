@@ -15,11 +15,11 @@ class PostController extends Controller
     public function index()
     {
         $posts = Post::with(['author', 'tags', 'images', 'comments.user'])
-                    ->orderBy('created_at', 'desc')
-                    ->paginate(5);
-    
+            ->orderBy('created_at', 'desc')
+            ->paginate(5);
+
         $allTags = Tag::all();
-    
+
         // Return JSON for API requests
         if (request()->wantsJson()) {
             return response()->json([
@@ -30,7 +30,7 @@ class PostController extends Controller
                 'total' => $posts->total(),
             ]);
         }
-    
+
         // Return Inertia response for non-API requests
         return Inertia::render('Posts/Index', [
             'posts' => $posts,
@@ -141,23 +141,80 @@ class PostController extends Controller
     {
         $posts = $user->posts()->with(['author', 'comments.user', 'likes', 'tags', 'images'])
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->paginate(5);
+        $allTags = Tag::all();
 
-        return Inertia::render('Posts/UserPosts', [
+        // Return JSON for API requests
+        if (request()->wantsJson()) {
+            return response()->json([
+                'data' => $posts->items(),
+                'current_page' => $posts->currentPage(),
+                'last_page' => $posts->lastPage(),
+                'per_page' => $posts->perPage(),
+                'total' => $posts->total(),
+            ]);
+        }
+
+        // Return Inertia response for non-API requests
+        return Inertia::render('Profile/Dashboard', [
             'posts' => $posts,
             'user' => $user,
+            'allTags' => $allTags,
         ]);
+        
     }
 
     public function tagPosts(Tag $tag)
     {
         $posts = $tag->posts()->with(['author', 'comments.user', 'likes', 'tags', 'images'])
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->paginate(5);
 
-        return Inertia::render('Posts/TagPosts', [
+        $allTags = Tag::all();
+
+        // Return JSON for API requests
+        if (request()->wantsJson()) {
+            return response()->json([
+                'data' => $posts->items(),
+                'current_page' => $posts->currentPage(),
+                'last_page' => $posts->lastPage(),
+                'per_page' => $posts->perPage(),
+                'total' => $posts->total(),
+            ]);
+        }
+
+        // Return Inertia response for non-API requests
+        return Inertia::render('Posts/Index', [
             'posts' => $posts,
+            'allTags' => $allTags,
             'tag' => $tag,
         ]);
+
+       
     }
+    // public function index()
+    // {
+    //     $posts = Post::with(['author', 'tags', 'images', 'comments.user'])
+    //         ->orderBy('created_at', 'desc')
+    //         ->paginate(5);
+
+    //     $allTags = Tag::all();
+
+    //     // Return JSON for API requests
+    //     if (request()->wantsJson()) {
+    //         return response()->json([
+    //             'data' => $posts->items(),
+    //             'current_page' => $posts->currentPage(),
+    //             'last_page' => $posts->lastPage(),
+    //             'per_page' => $posts->perPage(),
+    //             'total' => $posts->total(),
+    //         ]);
+    //     }
+
+    //     // Return Inertia response for non-API requests
+    //     return Inertia::render('Posts/Index', [
+    //         'posts' => $posts,
+    //         'allTags' => $allTags,
+    //     ]);
+    // }
 }

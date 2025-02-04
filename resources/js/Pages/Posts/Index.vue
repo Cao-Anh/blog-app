@@ -4,7 +4,10 @@
     <nav class="navbar">
       <div class="navbar-left">
         <!-- Logo -->
-        <img src="/images/laravel-logo.png" alt="Laravel Logo" class="logo" />
+        <a href="/">
+          <img src="/images/laravel-logo.png" alt="Laravel Logo" class="logo" />
+        </a>
+
       </div>
 
       <!-- Search Bar and Home Button -->
@@ -50,7 +53,8 @@
 
         <!-- User Login/Name -->
         <div v-if="$page.props.auth.user" class="user-section">
-          <img :src="`/storage/${$page.props.auth.user.profile_picture}`" alt="profile picture" class="profile-picture">
+          <UserDropdown>
+          </UserDropdown>
         </div>
         <button v-else @click="navigateToLogin" class="login-button">Login</button>
       </div>
@@ -199,11 +203,12 @@ import 'toastify-js/src/toastify.css';
 import Swal from 'sweetalert2';
 import axios from 'axios';
 import { reactive } from 'vue';
+import UserDropdown from '@/Layouts/UserDropdown.vue';
 
 export default {
-  components: { Link },
+  components: { Link,UserDropdown },
   props: {
-    posts: Object, // Paginated posts from the backend
+    posts: Object, 
     allTags: Array,
   },
   data() {
@@ -212,7 +217,7 @@ export default {
       isNotificationDropdownOpen: false,
       notifications: [],
       unreadNotifications: 0,
-
+      currentTag: null,
       currentPage: this.posts.current_page,
       lastPage: this.posts.last_page,
       visiblePosts: this.posts.data,
@@ -276,8 +281,33 @@ export default {
       this.$inertia.visit(route('login', { redirect: this.currentUrl }));
     },
     navigateToTag(tag) {
-      // Navigate to the tag page (placeholder for now)
-      this.$inertia.visit('/');
+      this.visiblePosts = [];
+      this.isLoading = true;
+      this.currentTag = tag;
+
+      const url = route('tags.posts', { tag: tag.id });
+
+      axios.get(url)
+        .then((response) => {
+          this.visiblePosts = response.data.data;
+          console.log(this.visiblePosts);
+          this.currentPage = response.data.current_page;
+          this.lastPage = response.data.last_page;
+        })
+        .catch((error) => {
+          console.error('Error performing search:', error);
+          Toastify({
+            text: 'Fail to get posts of the tag. Please try again.',
+            duration: 3000,
+            close: true,
+            gravity: 'top',
+            position: 'right',
+            backgroundColor: '#F44336',
+          }).showToast();
+        })
+        .finally(() => {
+          this.isLoading = false;
+        });
     },
     formatDate(date) {
       return new Date(date).toLocaleString();
@@ -312,12 +342,14 @@ export default {
         }
         post.commentContent = '';
       } catch (error) {
-        console.error('Error submitting comment:', error);
-        Swal.fire({
-          title: 'Error',
-          text: 'Failed to submit the comment. Please try again.',
-          icon: 'error',
-        });
+        Toastify({
+          text: 'Fail to submit the comment. Please try again.',
+          duration: 3000,
+          close: true,
+          gravity: 'top',
+          position: 'right',
+          backgroundColor: '#F44336',
+        }).showToast();
       }
     },
     async deleteComment(comment) {
@@ -334,12 +366,14 @@ export default {
           post.comments = post.comments.filter(c => c.id !== comment.id);
         }
       } catch (error) {
-        console.error('Error deleting comment:', error);
-        Swal.fire({
-          title: 'Error',
+        Toastify({
           text: 'Failed to delete the comment. Please try again.',
-          icon: 'error',
-        });
+          duration: 3000,
+          close: true,
+          gravity: 'top',
+          position: 'right',
+          backgroundColor: '#F44336',
+        }).showToast();
       }
     },
     // deleteComment(comment) {
@@ -413,22 +447,30 @@ export default {
       }
     },
     async loadMorePosts() {
-      if (this.currentPage >= this.lastPage || this.isLoading) {
-        return; // Stop if no more pages or already loading
-      }
+      if (this.currentPage >= this.lastPage || this.isLoading) return;
 
       this.isLoading = true;
 
       try {
         const nextPage = this.currentPage + 1;
-        const response = await axios.get(`/posts?page=${nextPage}`);
+        let url;
 
+        if (this.currentTag) {
+          url = route('tags.posts', {
+            tag: this.currentTag.id, 
+            page: nextPage,
+          });
+        } else {
+          url = `/posts?page=${nextPage}`;
+        }
+
+        const response = await axios.get(url);
         console.log('API Response:', response);
+
         if (Array.isArray(response.data.data)) {
           this.visiblePosts = [...this.visiblePosts, ...response.data.data];
           this.currentPage = nextPage;
-        } else {
-          console.error('Unexpected response structure:', response.data);
+          this.lastPage = response.data.last_page; 
         }
       } catch (error) {
         console.error('Error loading more posts:', error);
