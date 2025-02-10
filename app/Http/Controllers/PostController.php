@@ -12,14 +12,14 @@ use Inertia\Inertia;
 
 class PostController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $posts = Post::with(['author', 'tags', 'images', 'comments.user'])
             ->orderBy('created_at', 'desc')
             ->paginate(5);
 
         $allTags = Tag::all();
-
+        $tag = $request->query('tag');
         // Return JSON for API requests
         if (request()->wantsJson()) {
             return response()->json([
@@ -35,6 +35,7 @@ class PostController extends Controller
         return Inertia::render('Posts/Index', [
             'posts' => $posts,
             'allTags' => $allTags,
+            'tag'=> $tag
         ]);
     }
     public function create()
@@ -69,10 +70,17 @@ class PostController extends Controller
 
     public function show(Post $post)
     {
-        $post->load(['author', 'comments.user', 'likes', 'tags', 'images']);
+        $posts = Post::with(['author', 'tags', 'images', 'comments.user'])
+            ->orderBy('created_at', 'desc')
+            ->paginate(5);
 
+        $allTags = Tag::all();
+        $post->load(['author', 'comments.user', 'likes', 'tags', 'images']);
+        // dd($post, $posts, $allTags);
         return Inertia::render('Posts/Show', [
             'post' => $post,
+            'posts'=>$posts,
+            'allTags'=>$allTags
         ]);
     }
 
@@ -142,8 +150,8 @@ class PostController extends Controller
         $posts = $user->posts()->with(['author', 'comments.user', 'likes', 'tags', 'images'])
             ->orderBy('created_at', 'desc')
             ->paginate(5);
-        $allTags = Tag::all();
 
+        $allTags = Tag::all();
         // Return JSON for API requests
         if (request()->wantsJson()) {
             return response()->json([
@@ -156,42 +164,41 @@ class PostController extends Controller
         }
 
         // Return Inertia response for non-API requests
-        return Inertia::render('Profile/Dashboard', [
+        return Inertia::render('Posts/UserPosts', [
             'posts' => $posts,
             'user' => $user,
             'allTags' => $allTags,
         ]);
-        
     }
 
     public function tagPosts(Tag $tag)
-    {
-        $posts = $tag->posts()->with(['author', 'comments.user', 'likes', 'tags', 'images'])
-            ->orderBy('created_at', 'desc')
-            ->paginate(5);
+{
+    $posts = $tag->posts()->with(['author', 'comments.user', 'likes', 'tags', 'images'])
+        ->orderBy('created_at', 'desc')
+        ->paginate(5);
 
-        $allTags = Tag::all();
+    $allTags = Tag::all();
 
-        // Return JSON for API requests
-        if (request()->wantsJson()) {
-            return response()->json([
-                'data' => $posts->items(),
-                'current_page' => $posts->currentPage(),
-                'last_page' => $posts->lastPage(),
-                'per_page' => $posts->perPage(),
-                'total' => $posts->total(),
-            ]);
-        }
-
-        // Return Inertia response for non-API requests
-        return Inertia::render('Posts/Index', [
-            'posts' => $posts,
-            'allTags' => $allTags,
-            'tag' => $tag,
+    // If the request is an API call (e.g., from Vue axios)
+    if (request()->wantsJson()) {
+        return response()->json([
+            'data' => $posts->items(),
+            'current_page' => $posts->currentPage(),
+            'last_page' => $posts->lastPage(),
+            'per_page' => $posts->perPage(),
+            'total' => $posts->total(),
         ]);
-
-       
     }
+
+    // If the request is from Inertia.js, return the Inertia response
+    return Inertia::render('Posts/Index', [
+        'posts' => $posts,
+        'allTags' => $allTags,
+        'tag'=> $tag
+         
+    ]);
+}
+
     // public function index()
     // {
     //     $posts = Post::with(['author', 'tags', 'images', 'comments.user'])

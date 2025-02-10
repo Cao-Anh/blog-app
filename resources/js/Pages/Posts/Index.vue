@@ -53,8 +53,8 @@
 
         <!-- User Login/Name -->
         <div v-if="$page.props.auth.user" class="user-section">
-          <UserDropdown>
-          </UserDropdown>
+          <user-dropdown>
+          </user-dropdown>
         </div>
         <button v-else @click="navigateToLogin" class="login-button">Login</button>
       </div>
@@ -101,8 +101,10 @@
               alt="Profile Picture" class="profile-picture" />
 
             <div class="author-info">
-              <span class="author-name">{{ post.author.name }}</span>
-              <span class="timestamp">{{ formatDate(post.created_at) }}</span>
+              <span class="author-name" @click="navigateToAuthorPosts(post.author.id)" style="cursor: pointer;">
+                {{ post.author.name }}
+              </span>
+              <span class="timestamp ml-3">{{ formatDate(post.created_at) }}</span>
             </div>
           </div>
 
@@ -123,7 +125,7 @@
           </div>
 
           <!-- Tags -->
-          <div v-if="post.tags.length > 0" class="tags">
+          <div v-if="post.tags.length > 0" class="tags mb-2">
             <span v-for="tag in post.tags" :key="tag.id" @click="navigateToTag(tag)" class="tag">{{ tag.name }}</span>
           </div>
 
@@ -151,13 +153,24 @@
             </button>
           </div>
 
-          <!-- Like and Comment Section -->
+          <!-- Like share and Comment Section -->
           <div class="actions">
+            <!-- Like Button -->
             <button @click="toggleLike(post)" :class="{ 'liked': post.is_liked }">
+              <i :class="post.is_liked ? 'fas fa-thumbs-up' : 'far fa-thumbs-up'"></i>
               {{ post.is_liked ? 'Liked' : 'Like' }} ({{ post.likes_count }})
             </button>
+
+            <!-- Comment Button -->
             <button @click="toggleCommentSection(post)">
+              <i class="far fa-comment"></i>
               Comment ({{ post.comments.length }})
+            </button>
+
+            <!-- Share Button -->
+            <button @click="sharePost(post.id)">
+              <i class="fas fa-share"></i>
+              Share
             </button>
           </div>
 
@@ -202,17 +215,20 @@ import Toastify from 'toastify-js';
 import 'toastify-js/src/toastify.css';
 import Swal from 'sweetalert2';
 import axios from 'axios';
-import { reactive } from 'vue';
+import { reactive, onMounted } from 'vue';
 import UserDropdown from '@/Layouts/UserDropdown.vue';
 
 export default {
-  components: { Link,UserDropdown },
+  components: { Link, UserDropdown },
   props: {
-    posts: Object, 
+    posts: Object,
     allTags: Array,
+    tag: String,
+
   },
   data() {
     return {
+      currentUser: this.$page.props.auth.user,
       searchQuery: '',
       isNotificationDropdownOpen: false,
       notifications: [],
@@ -278,18 +294,27 @@ export default {
     },
 
     navigateToLogin() {
-      this.$inertia.visit(route('login', { redirect: this.currentUrl }));
-    },
+      const currentUrl = window.location.href;
+      const currentPage = this.currentPage || 1;
+
+      this.$inertia.visit(route("login", { redirect: currentUrl, page: currentPage }));
+    }
+    ,
     navigateToTag(tag) {
+
+      this.$inertia.get(route('posts.index', { tag: tag.id }));
+    },
+    fetchPostsByTag(tagId) {
       this.visiblePosts = [];
       this.isLoading = true;
-      this.currentTag = tag;
 
-      const url = route('tags.posts', { tag: tag.id });
+      this.currentTag = parseInt(tagId)
+
+      const url = route('tags.posts', { tag: tagId });
 
       axios.get(url)
         .then((response) => {
-          this.visiblePosts = response.data.data;
+          this.visiblePosts = response.data.data
           console.log(this.visiblePosts);
           this.currentPage = response.data.current_page;
           this.lastPage = response.data.last_page;
@@ -309,6 +334,9 @@ export default {
           this.isLoading = false;
         });
     },
+    navigateToAuthorPosts(authorId) {
+      this.$inertia.visit(route('users.posts', { user: authorId }));
+    },
     formatDate(date) {
       return new Date(date).toLocaleString();
     },
@@ -316,7 +344,7 @@ export default {
       post.showComments = !post.showComments;
     },
     async submitComment(post) {
-      if (!this.$page.props.auth.user) {
+      if (!this.currentUser) {
         Swal.fire({
           title: 'Login Required',
           text: 'You need to log in to comment. Do you want to log in now?',
@@ -326,7 +354,7 @@ export default {
           cancelButtonText: 'Cancel',
         }).then((result) => {
           if (result.isConfirmed) {
-            this.$inertia.visit(route('login', { redirect: this.currentUrl }));
+            this.navigateToLogin();
           }
         });
         return;
@@ -338,9 +366,17 @@ export default {
         });
 
         if (response.data.comment) {
-          post.comments.push(response.data.comment);
+          post.comments.unshift(response.data.comment);
         }
         post.commentContent = '';
+        Toastify({
+          text: "Comment submited successfully.",
+          duration: 3000,
+          close: true,
+          gravity: 'top',
+          position: 'right',
+          backgroundColor: '#4CAF50',
+        }).showToast();
       } catch (error) {
         Toastify({
           text: 'Fail to submit the comment. Please try again.',
@@ -355,16 +391,19 @@ export default {
     async deleteComment(comment) {
       try {
         const url = route('comments.destroy', comment.id);
-        console.log('Delete URL:', url); // Log the URL
-
         await axios.delete(url);
-
-        // Find the post containing the comment and remove the comment from its array
-        console.log(this.posts);
         const post = this.posts.data.find(p => p.comments.some(c => c.id === comment.id));
         if (post) {
           post.comments = post.comments.filter(c => c.id !== comment.id);
         }
+        Toastify({
+          text: "Comment deleted.",
+          duration: 3000,
+          close: true,
+          gravity: 'top',
+          position: 'right',
+          backgroundColor: '#4CAF50',
+        }).showToast();
       } catch (error) {
         Toastify({
           text: 'Failed to delete the comment. Please try again.',
@@ -376,11 +415,12 @@ export default {
         }).showToast();
       }
     },
-    // deleteComment(comment) {
-    //   this.$inertia.delete(route('comments.destroy', comment.id));
-    // },
+
     async toggleLike(post) {
       if (!this.$page.props.auth.user) {
+        sessionStorage.setItem('scrollPosition', window.scrollY);
+        sessionStorage.setItem('lastInteractedPost', `post-${post.id}`);
+        sessionStorage.setItem("lastVisitedPage", this.currentPage);
         Swal.fire({
           title: 'Login Required',
           text: 'You need to log in to like a post. Do you want to log in now?',
@@ -390,7 +430,7 @@ export default {
           cancelButtonText: 'Cancel',
         }).then((result) => {
           if (result.isConfirmed) {
-            this.$inertia.visit(route('login', { redirect: this.currentUrl }));
+            this.navigateToLogin();
           }
         });
         return;
@@ -407,6 +447,34 @@ export default {
         post.likes_count += post.is_liked ? 1 : -1;
         console.error('Error toggling like:', error);
       }
+    },
+
+    sharePost(postId) {
+      const postUrl = `${window.location.origin}/posts/${postId}`;
+
+      navigator.clipboard.writeText(postUrl)
+        .then(() => {
+          Toastify({
+            text: 'Post link copied to clipboard!',
+            duration: 3000,
+            close: true,
+            gravity: 'top',
+            position: 'right',
+            backgroundColor: '#4CAF50',
+          }).showToast();
+        })
+        .catch((error) => {
+          console.error('Failed to copy URL:', error);
+          Toastify({
+            text: 'Failed to copy post link. Please try again.',
+            duration: 3000,
+            close: true,
+            gravity: 'top',
+            position: 'right',
+            backgroundColor: '#F44336',
+          }).showToast();
+        });
+
     },
     createNewPost() {
       if (this.$page.props.auth.user) {
@@ -427,8 +495,8 @@ export default {
       }
     },
     editPost(post) {
-      const currentUser = this.$page.props.auth.user;
-      if (currentUser && (currentUser.role === 'admin' || post.user_id === currentUser.id)) {
+
+      if (this.currentUser && (this.currentUser.role === 'admin' || post.user_id === this.currentUser.id)) {
         router.visit(`/posts/${post.id}/edit`);
       } else {
         Toastify({
@@ -457,7 +525,7 @@ export default {
 
         if (this.currentTag) {
           url = route('tags.posts', {
-            tag: this.currentTag.id, 
+            tag: this.currentTag,
             page: nextPage,
           });
         } else {
@@ -470,7 +538,7 @@ export default {
         if (Array.isArray(response.data.data)) {
           this.visiblePosts = [...this.visiblePosts, ...response.data.data];
           this.currentPage = nextPage;
-          this.lastPage = response.data.last_page; 
+          this.lastPage = response.data.last_page;
         }
       } catch (error) {
         console.error('Error loading more posts:', error);
@@ -481,8 +549,7 @@ export default {
     handleScroll() {
       const bottomOfWindow =
         document.documentElement.scrollTop + window.innerHeight >=
-        document.documentElement.offsetHeight - 100; // Load before reaching the bottom
-
+        document.documentElement.offsetHeight - 100;
       if (bottomOfWindow) {
         this.loadMorePosts();
       }
@@ -583,8 +650,8 @@ export default {
 
     // handle notifications
     showNotifications() {
-      const currentUser = this.$page.props.auth.user;
-      if (!currentUser) {
+
+      if (!this.currentUser) {
         Swal.fire({
           title: 'Login Required',
           text: 'Log in to see your notifications. Do you want to log in now?',
@@ -618,13 +685,12 @@ export default {
         });
     },
     markNotificationsAsRead() {
-      const currentUser = this.$page.props.auth.user;
-      if (!currentUser) {
+      if (!this.currentUser) {
         console.warn("User is not authenticated.");
         return;
       }
 
-      axios.post('/api/notifications/mark-as-read', { user_id: currentUser.id })
+      axios.post('/api/notifications/mark-as-read', { user_id: this.currentUser.id })
         .then(() => {
           if (Array.isArray(this.notifications)) {
             this.notifications.forEach(n => n.read = true);
@@ -642,11 +708,14 @@ export default {
     },
   },
   mounted() {
-    const currentUser = this.$page.props.auth.user;
-    if (currentUser) {
-      console.log(`Listening for notifications on: notifications.${currentUser.id}`);
+    const tagId = this.$page.props.tag;
+    if (tagId) {
+      this.fetchPostsByTag(tagId);
+    }
+    if (this.currentUser) {
+      console.log(`Listening for notifications on: notifications.${this.currentUser.id}`);
 
-      window.Echo.private(`notifications.${currentUser.id}`)
+      window.Echo.private(`notifications.${this.currentUser.id}`)
         .listen('.comment.added', (e) => {
           console.log('Received Comment Notification:', e); // Debugging log
           if (e.notification) {
@@ -670,17 +739,47 @@ export default {
     }
 
     window.addEventListener('scroll', this.handleScroll);
+
+    this.$nextTick(() => {
+      const scrollPosition = sessionStorage.getItem("scrollPosition");
+      const lastInteractedPost = sessionStorage.getItem("lastInteractedPost");
+      const lastVisitedPage = sessionStorage.getItem("lastVisitedPage");
+
+      if (lastVisitedPage && this.currentPage !== parseInt(lastVisitedPage, 10)) {
+        this.$inertia.visit(route("posts.index", { page: lastVisitedPage }));
+        return;
+      }
+
+      setTimeout(() => {
+        if (scrollPosition) {
+          window.scrollTo({ top: parseInt(scrollPosition, 10), behavior: "smooth" });
+          sessionStorage.removeItem("scrollPosition");
+        }
+
+        if (lastInteractedPost) {
+          const element = document.getElementById(lastInteractedPost);
+          if (element) {
+            element.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+          sessionStorage.removeItem("lastInteractedPost");
+        }
+        sessionStorage.removeItem("lastVisitedPage")
+      }, 800);
+    });
   },
 
   beforeDestroy() {
     window.removeEventListener('scroll', this.handleScroll);
   },
+
 };
+
 </script>
 
 <style>
 /* Navbar Styles */
 .navbar {
+  min-height: 60px;
   position: fixed;
   top: 0;
   left: 0;
@@ -688,7 +787,7 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px;
+  padding: 0 16px;
   background: #fff;
   border-bottom: 1px solid #ddd;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -868,6 +967,10 @@ export default {
 
 .author-name {
   font-weight: bold;
+}
+
+.author-name:hover {
+  text-decoration: underline;
 }
 
 .timestamp {

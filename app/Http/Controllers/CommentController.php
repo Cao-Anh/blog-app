@@ -42,9 +42,10 @@ class CommentController extends Controller
         if ($request->has('redirect')) {
             session()->put('url.intended', $request->input('redirect'));
         }
-
+        
         return response()->json([
             'comment' => $comment,
+            
             'message' => 'Comment added successfully!',
         ]);
     }

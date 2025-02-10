@@ -26,7 +26,7 @@ class AuthenticatedSessionController extends Controller
         return Inertia::render('Auth/Login', [
             'canResetPassword' => Route::has('password.request'),
             'status' => session('status'),
-            'redirect' => $request->query('redirect', ''), 
+            'redirect' => $request->query('redirect', ''),
         ]);
     }
 
@@ -36,10 +36,13 @@ class AuthenticatedSessionController extends Controller
     public function store(LoginRequest $request): RedirectResponse
     {
         $request->authenticate();
-
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        $redirectUrl = session('url.intended', route('dashboard'));
+        $page = session('url.page', 1); 
+
+        // Append the page number to the redirect URL
+        return redirect()->intended($redirectUrl . "?page=" . $page);
     }
 
     /**

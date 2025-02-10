@@ -28,9 +28,9 @@ Route::get('register', function(){
     return Inertia::render('Register');
 });
 //test
-Route::get('test', function(){
-    return Inertia::render('Posts/Test');
-});
+// Route::get('test', function(){
+//     return Inertia::render('Posts/Test');
+// });
 
 Route::get('/dashboard', function () {
     return Inertia::render('Dashboard');
