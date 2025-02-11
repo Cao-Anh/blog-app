@@ -64,7 +64,7 @@
     <div class="main-content">
       <!-- Left Sidebar for Tags -->
       <div class="sidebar">
-        <h3>Tags</h3>
+        <h3><i class="fa-solid fa-tag"></i>Tags</h3>
         <div class="tags">
           <span v-for="tag in allTags" :key="tag.id" @click="navigateToTag(tag)" class="tag">{{ tag.name }}</span>
         </div>
@@ -72,8 +72,11 @@
 
       <!-- Post List -->
       <div class="post-list">
-        <h1>Posts</h1>
-        <button @click="createNewPost" class="btn">Create New Post</button>
+        <button class="status-box mb-8" @click="createNewPost">
+          <img :src="$page.props.auth.user ? `/storage/${$page.props.auth.user.profile_picture}` : '/storage/users/default-image.png'"
+            alt="Profile Picture" class="profile-picture" />
+          <p class="status-input">What's on your mind?</p>
+        </button>
 
         <div v-for="post in visiblePosts" :key="post.id" class="post">
           <!-- Admin Actions (Top Right) -->
@@ -126,6 +129,7 @@
 
           <!-- Tags -->
           <div v-if="post.tags.length > 0" class="tags mb-2">
+            <span><i class="fa-solid fa-tag"></i></span>
             <span v-for="tag in post.tags" :key="tag.id" @click="navigateToTag(tag)" class="tag">{{ tag.name }}</span>
           </div>
 
@@ -178,7 +182,8 @@
           <div v-if="post.showComments" class="comment-section">
             <form @submit.prevent="submitComment(post)">
               <textarea v-model="post.commentContent" placeholder="Add a comment"></textarea>
-              <button type="submit">Submit</button>
+              <button class="mb-3" type="submit">Send <i class="fa-solid fa-paper-plane fa-rotate-by"
+                  style="--fa-rotate-angle: 45deg;"></i></button>
             </form>
 
             <!-- Display Comments -->
@@ -295,9 +300,8 @@ export default {
 
     navigateToLogin() {
       const currentUrl = window.location.href;
-      const currentPage = this.currentPage || 1;
 
-      this.$inertia.visit(route("login", { redirect: currentUrl, page: currentPage }));
+      this.$inertia.visit(route("login", { redirect: currentUrl }));
     }
     ,
     navigateToTag(tag) {
@@ -345,6 +349,7 @@ export default {
     },
     async submitComment(post) {
       if (!this.currentUser) {
+        localStorage.setItem('redirect_after_login', route('posts.show', { post: post.id }));
         Swal.fire({
           title: 'Login Required',
           text: 'You need to log in to comment. Do you want to log in now?',
@@ -355,6 +360,8 @@ export default {
         }).then((result) => {
           if (result.isConfirmed) {
             this.navigateToLogin();
+          } else if (result.isDenied) {
+            localStorage.removeItem('redirect_after_login');
           }
         });
         return;
@@ -418,9 +425,8 @@ export default {
 
     async toggleLike(post) {
       if (!this.$page.props.auth.user) {
-        sessionStorage.setItem('scrollPosition', window.scrollY);
-        sessionStorage.setItem('lastInteractedPost', `post-${post.id}`);
-        sessionStorage.setItem("lastVisitedPage", this.currentPage);
+        localStorage.setItem('redirect_after_login', route('posts.show', { post: post.id }));
+
         Swal.fire({
           title: 'Login Required',
           text: 'You need to log in to like a post. Do you want to log in now?',
@@ -431,6 +437,8 @@ export default {
         }).then((result) => {
           if (result.isConfirmed) {
             this.navigateToLogin();
+          } else if (result.isDenied) {
+            localStorage.removeItem('redirect_after_login');
           }
         });
         return;
@@ -477,9 +485,13 @@ export default {
 
     },
     createNewPost() {
-      if (this.$page.props.auth.user) {
-        this.$inertia.visit(route('posts.create'));
-      } else {
+      if (!this.$page.props.auth.user) {
+
+        localStorage.setItem('redirect_after_login', route('posts.create'));
+
+        // const a = localStorage.getItem('redirect_after_login');
+        // console.log('a', a);  // Output: The stored route URL
+
         Swal.fire({
           title: 'Login Required',
           text: 'You need to log in to create a new post. Do you want to log in now?',
@@ -489,9 +501,15 @@ export default {
           cancelButtonText: 'Cancel',
         }).then((result) => {
           if (result.isConfirmed) {
-            this.$inertia.visit(route('login'));
+            this.navigateToLogin();
+          }
+          else if (result.isDenied) {
+            localStorage.removeItem('redirect_after_login');
           }
         });
+      } else {
+        this.$inertia.visit(route('posts.create'));
+
       }
     },
     editPost(post) {
@@ -708,9 +726,19 @@ export default {
     },
   },
   mounted() {
-    const tagId = this.$page.props.tag;
-    if (tagId) {
-      this.fetchPostsByTag(tagId);
+    {
+      const redirectUrl = localStorage.getItem('redirect_after_login');
+      console.log('mounted', redirectUrl)
+      if (redirectUrl) {
+        localStorage.removeItem('redirect_after_login');
+        this.$inertia.visit(redirectUrl);
+      }
+    }
+    {
+      const tagId = this.$page.props.tag;
+      if (tagId) {
+        this.fetchPostsByTag(tagId);
+      }
     }
     if (this.currentUser) {
       console.log(`Listening for notifications on: notifications.${this.currentUser.id}`);
@@ -933,6 +961,27 @@ export default {
 .tag:hover {
   background: #ddd;
   color: #000;
+}
+
+/* create post */
+.status-box {
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border-radius: 8px;
+  padding: 10px 15px;
+  width: 500px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.status-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 16px;
+  background: #f0f2f5;
+  padding: 10px 15px;
+  border-radius: 8px;
 }
 
 /* Existing Post Styles (unchanged) */

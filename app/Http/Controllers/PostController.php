@@ -170,6 +170,38 @@ class PostController extends Controller
             'allTags' => $allTags,
         ]);
     }
+    public function tagUserPosts(User $user,Tag $tag)
+{
+    $posts = $user->posts()
+        ->whereHas('tags', function ($query) use ($tag) {
+            $query->where('tags.id', $tag->id);
+        })
+        ->with(['author', 'comments.user', 'likes', 'tags', 'images'])
+        ->orderBy('created_at', 'desc')
+        ->paginate(5);
+
+    $allTags = Tag::all();
+
+    // If the request is an API call (e.g., from Vue axios)
+    if (request()->wantsJson()) {
+        return response()->json([
+            'data' => $posts->items(),
+            'current_page' => $posts->currentPage(),
+            'last_page' => $posts->lastPage(),
+            'per_page' => $posts->perPage(),
+            'total' => $posts->total(),
+        ]);
+    }
+
+    // If the request is from Inertia.js, return the Inertia response
+    return Inertia::render('Posts/UserPosts', [
+        'posts' => $posts,
+        'allTags' => $allTags,
+        'tag' => $tag,
+        'user' => $user
+    ]);
+}
+
 
     public function tagPosts(Tag $tag)
 {

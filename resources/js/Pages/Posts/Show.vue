@@ -15,6 +15,7 @@
 
 
             <!-- Notification and User Section -->
+
             <div class="navbar-right">
                 <!-- Notification Bell -->
                 <button @click="showNotifications" class="icon-button">
@@ -100,6 +101,7 @@
 
                     <!-- Tags -->
                     <div v-if="post.tags.length > 0" class="tags mb-2">
+                        <span><i class="fa-solid fa-tag"></i></span>
                         <span v-for="tag in post.tags" :key="tag.id" @click="navigateToTag(tag)" class="tag">{{ tag.name
                             }}</span>
                     </div>
@@ -154,7 +156,7 @@
                     <div v-if="post.showComments" class="comment-section">
                         <form @submit.prevent="submitComment(post)">
                             <textarea v-model="post.commentContent" placeholder="Add a comment"></textarea>
-                            <button type="submit">Submit</button>
+                            <button class="mb-3" type="submit">Send <i class="fa-solid fa-paper-plane fa-rotate-by" style="--fa-rotate-angle: 45deg;"></i></button>
                         </form>
 
                         <!-- Display Comments -->
@@ -362,6 +364,33 @@ export default {
                 post.likes_count += post.is_liked ? 1 : -1;
                 console.error('Error toggling like:', error);
             }
+        },
+        sharePost(postId) {
+            const postUrl = `${window.location.origin}/posts/${postId}`;
+
+            navigator.clipboard.writeText(postUrl)
+                .then(() => {
+                    Toastify({
+                        text: 'Post link copied to clipboard!',
+                        duration: 3000,
+                        close: true,
+                        gravity: 'top',
+                        position: 'right',
+                        backgroundColor: '#4CAF50',
+                    }).showToast();
+                })
+                .catch((error) => {
+                    console.error('Failed to copy URL:', error);
+                    Toastify({
+                        text: 'Failed to copy post link. Please try again.',
+                        duration: 3000,
+                        close: true,
+                        gravity: 'top',
+                        position: 'right',
+                        backgroundColor: '#F44336',
+                    }).showToast();
+                });
+
         },
         createNewPost() {
             if (this.$page.props.auth.user) {

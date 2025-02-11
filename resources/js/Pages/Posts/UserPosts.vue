@@ -18,8 +18,9 @@
                         <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
                     </svg>
                 </button>
-                <input type="text" v-model="searchQuery" @keyup.enter="performSearch" placeholder="Search..." />
-                <button @click="performSearch" class="icon-button">
+                <input type="text" v-model="searchQuery" @keyup.enter="performSearchSingleUser"
+                    placeholder="Search..." />
+                <button @click="performSearchSingleUser" class="icon-button">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
                         <path
                             d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 0 0 1.48-5.34c-.47-2.78-2.79-5-5.59-5.34a6.505 6.505 0 0 0-7.27 7.27c.34 2.8 2.56 5.12 5.34 5.59a6.5 6.5 0 0 0 5.34-1.48l.27.28v.79l4.25 4.25c.41.41 1.08.41 1.49 0 .41-.41.41-1.08 0-1.49L15.5 14zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
@@ -64,9 +65,10 @@
         <div class="main-content">
             <!-- Left Sidebar for Tags -->
             <div class="sidebar">
-                <h3>Tags</h3>
+                <h3><i class="fa-solid fa-tag"></i>Tags</h3>
                 <div class="tags">
-                    <span v-for="tag in allTags" :key="tag.id" @click="navigateToTag(tag)" class="tag">{{ tag.name
+                    <span v-for="tag in allTags" :key="tag.id" @click="navigateToTagUser(tag, user)" class="tag">{{
+                        tag.name
                         }}</span>
                 </div>
             </div>
@@ -140,7 +142,10 @@
 
                     <!-- Tags -->
                     <div v-if="post.tags.length > 0" class="tags mb-2">
-                        <span v-for="tag in post.tags" :key="tag.id" @click="navigateToTag(tag)" class="tag">{{ tag.name
+                        <span><i class="fa-solid fa-tag"></i></span>
+                        <span v-for="tag in post.tags" :key="tag.id" @click="navigateToTagUser(tag, user)"
+                            class="tag">{{
+                                tag.name
                             }}</span>
                     </div>
 
@@ -195,7 +200,7 @@
                     <div v-if="post.showComments" class="comment-section">
                         <form @submit.prevent="submitComment(post)">
                             <textarea v-model="post.commentContent" placeholder="Add a comment"></textarea>
-                            <button type="submit">Submit</button>
+                            <button class="mb-3" type="submit">Send <i class="fa-solid fa-paper-plane fa-rotate-by" style="--fa-rotate-angle: 45deg;"></i></button>
                         </form>
 
                         <!-- Display Comments -->
@@ -278,18 +283,19 @@ export default {
         navigateToHome() {
             this.$inertia.visit('/');
         },
-        performSearch() {
+        performSearchSingleUser() {
             if (!this.searchQuery.trim()) {
                 this.visiblePosts = this.posts.data;
                 return;
             }
-
+            console.log(this.user.id)
             this.isLoading = true;
 
             axios
-                .get('/posts/search', {
+                .get(`/users/${this.user.id}/posts/search`, {
                     params: {
                         query: this.searchQuery,
+
                     },
                 })
                 .then((response) => {
@@ -312,17 +318,17 @@ export default {
 
         navigateToLogin() {
             const currentUrl = window.location.href;
-            const currentPage = this.currentPage || 1;
 
-            this.$inertia.visit(route("login", { redirect: currentUrl, page: currentPage }));
+
+            this.$inertia.visit(route("login", { redirect: currentUrl }));
         }
         ,
-        navigateToTag(tag) {
+        navigateToTagUser(tag, user) {
             this.visiblePosts = [];
             this.isLoading = true;
             this.currentTag = tag;
 
-            const url = route('tags.posts', { tag: tag.id });
+            const url = route('users.tags.posts', { user: user.id, tag: tag.id });
 
             axios.get(url)
                 .then((response) => {
@@ -332,9 +338,9 @@ export default {
                     this.lastPage = response.data.last_page;
                 })
                 .catch((error) => {
-                    console.error('Error performing search:', error);
+                    console.error('Error fetching user-specific tag posts:', error);
                     Toastify({
-                        text: 'Fail to get posts of the tag. Please try again.',
+                        text: 'Failed to get posts for this tag and user. Please try again.',
                         duration: 3000,
                         close: true,
                         gravity: 'top',
@@ -346,6 +352,7 @@ export default {
                     this.isLoading = false;
                 });
         },
+
         navigateToAuthorPosts(authorId) {
             this.$inertia.visit(route('users.posts', { user: authorId }));
         },
@@ -459,6 +466,33 @@ export default {
                 post.likes_count += post.is_liked ? 1 : -1;
                 console.error('Error toggling like:', error);
             }
+        },
+        sharePost(postId) {
+            const postUrl = `${window.location.origin}/posts/${postId}`;
+
+            navigator.clipboard.writeText(postUrl)
+                .then(() => {
+                    Toastify({
+                        text: 'Post link copied to clipboard!',
+                        duration: 3000,
+                        close: true,
+                        gravity: 'top',
+                        position: 'right',
+                        backgroundColor: '#4CAF50',
+                    }).showToast();
+                })
+                .catch((error) => {
+                    console.error('Failed to copy URL:', error);
+                    Toastify({
+                        text: 'Failed to copy post link. Please try again.',
+                        duration: 3000,
+                        close: true,
+                        gravity: 'top',
+                        position: 'right',
+                        backgroundColor: '#F44336',
+                    }).showToast();
+                });
+
         },
         createNewPost() {
             if (this.$page.props.auth.user) {
@@ -600,37 +634,7 @@ export default {
         showSeeLessButton(fullText, postId) {
             return fullText.length > this.maxLength && this.expandedPosts[postId];
         },
-        performSearch() {
-            if (!this.searchQuery.trim()) {
-                this.visiblePosts = this.posts.data;
-                return;
-            }
 
-            this.isLoading = true;
-
-            axios
-                .get('/posts/search', {
-                    params: {
-                        query: this.searchQuery,
-                    },
-                })
-                .then((response) => {
-                    this.visiblePosts = response.data.data;
-                    this.currentPage = response.data.current_page;
-                    this.lastPage = response.data.last_page;
-                })
-                .catch((error) => {
-                    console.error('Error performing search:', error);
-                    Swal.fire({
-                        title: 'Error',
-                        text: 'Failed to perform the search. Please try again.',
-                        icon: 'error',
-                    });
-                })
-                .finally(() => {
-                    this.isLoading = false;
-                });
-        },
 
         // handle notifications
         showNotifications() {

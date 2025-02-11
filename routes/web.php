@@ -24,7 +24,7 @@ Route::get('/', [PostController::class, 'index'])->name('home');
 Route::get('/posts', [PostController::class, 'index'])->name('posts.index');
 
 
-Route::get('register', function(){
+Route::get('register', function () {
     return Inertia::render('Register');
 });
 //test
@@ -58,20 +58,25 @@ Route::middleware('auth')->group(function () {
 
     //Like routes
     Route::post('/posts/{post}/like', [LikeController::class, 'toggleLike'])->name('posts.like');
-    
+
     // notifications routes
     Route::get('/api/notifications', [NotificationController::class, 'index']);
     Route::post('/api/notifications/mark-as-read', [NotificationController::class, 'markAsRead']);
 });
 // search route
-Route::get('/posts/search',[SearchController::class,'search'])->name('posts.search');
+Route::get('/posts/search', [SearchController::class, 'search'])->name('posts.search');
+//search posts of a single user
+Route::get('/users/{user}/posts/search', [SearchController::class, 'searchSingleUser'])->name('users.posts.search');
 // single post route
 Route::get('/posts/{post}', [PostController::class, 'show'])->name('posts.show');
 // posts of a user route
 Route::get('/users/{user}/posts', [PostController::class, 'userPosts'])->name('users.posts');
 // posts of a tag
 Route::get('/tags/{tag}/posts', [PostController::class, 'tagPosts'])->name('tags.posts');
+//posts of a tag of a user
+Route::get('/users/{user}/tags/{tag}/posts', [PostController::class, 'tagUserPosts'])
+    ->name('users.tags.posts');
 
 
 // Authentication routes (from Laravel Breeze)
-require __DIR__.'/auth.php';
+require __DIR__ . '/auth.php';
