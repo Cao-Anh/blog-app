@@ -28,13 +28,15 @@ class CommentController extends Controller
         $comment->load('user');
 
         // Create a notification for the post author
-        $notification = Notification::create([
-            'user_id' => $post->user_id, // Notify the post author
-            'notifiable_id' => $comment->id,
-            'notifiable_type' => Comment::class,
-            'type' => 'comment',
-            'read' => false,
-        ]);
+        if ($post->user_id !== Auth::id()) { 
+            $notification=Notification::create([
+                'user_id' => $post->user_id,
+                'post_id' => $post->id,      
+                'type' => 'comment',        
+                'user_name' => Auth::user()->name, 
+                'read' => false,           
+            ]);
+        }
 
         // Trigger the CommentAdded event
         event(new CommentAdded($notification));

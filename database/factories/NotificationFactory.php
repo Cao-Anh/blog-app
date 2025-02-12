@@ -2,6 +2,8 @@
 namespace Database\Factories;
 
 use App\Models\Notification;
+use App\Models\User;
+use App\Models\Post;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 class NotificationFactory extends Factory
@@ -11,11 +13,11 @@ class NotificationFactory extends Factory
     public function definition()
     {
         return [
-            'user_id' => \App\Models\User::inRandomOrder()->first()->id, // The user who receives the notification
-            'type' => $this->faker->randomElement(['like', 'comment']), // Type of notification
-            'notifiable_id' => \App\Models\Post::inRandomOrder()->first()->id, // The related entity (e.g., post)
-            'notifiable_type' => \App\Models\Post::class, // The class of the related entity
-            'read' => $this->faker->boolean(20), // 20% chance of being marked as read
+            'user_id' => User::factory(), 
+            'post_id' => Post::factory(), 
+            'type' => $this->faker->randomElement(['like', 'comment']),
+            'user_name' => $this->faker->name,
+            'read' => $this->faker->boolean,
         ];
     }
 }

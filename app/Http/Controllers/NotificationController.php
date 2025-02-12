@@ -5,18 +5,25 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Notification;
+use Illuminate\Support\Facades\Auth;
 
 class NotificationController extends Controller
 
 {
     public function index(Request $request)
     {
-        $userId = $request->query('user_id');
+        // Ensure the user is authenticated
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
 
-        
-        $notifications = Notification::where('user_id', $userId)
+        $page = $request->query('page', 1); 
+        $perPage = $request->query('per_page', 5); 
+
+        $notifications = Notification::where('user_id', $user->id)
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->paginate($perPage, ['*'], 'page', $page);
 
         return response()->json($notifications);
     }

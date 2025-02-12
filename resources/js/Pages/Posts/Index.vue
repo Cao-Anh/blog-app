@@ -30,16 +30,16 @@
       <!-- Notification and User Section -->
       <div class="navbar-right">
         <!-- Notification Bell -->
-        <button @click="showNotifications" class="icon-button">
+        <!-- <button @click="showNotifications" class="icon-button">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
             <path
               d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" />
           </svg>
           <span v-if="unreadNotifications > 0" class="notification-badge">{{ unreadNotifications }}</span>
-        </button>
+        </button> -->
 
         <!-- Notification Dropdown -->
-        <div v-if="isNotificationDropdownOpen" class="notification-dropdown">
+        <!-- <div v-if="isNotificationDropdownOpen" class="notification-dropdown">
 
           <div v-if="notifications.length === 0" class="notification-item">
             <p>Nothing to show.</p>
@@ -49,6 +49,28 @@
             <p v-else-if="notification.type === 'comment'">Someone commented on your post.</p>
             <small>{{ formatDate(notification.created_at) }}</small>
           </div>
+        </div> -->
+        <button @click="showNotifications" class="icon-button">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+            <path
+              d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" />
+          </svg>
+          <span v-if="unreadNotifications > 0" class="notification-badge">{{ unreadNotifications }}</span>
+        </button>
+
+        <!-- Notification Dropdown -->
+        <div v-if="isNotificationDropdownOpen" v-click-outside="toggleNotificationDropdown" class="notification-dropdown">
+          <div v-if="notifications.length === 0" class="notification-item">
+            <p>Nothing to show.</p> 
+          </div>
+          <div v-else v-for="notification in visibleNotifications" :key="notification.id" class="notification-item"
+            @click="navigateToPost(notification.post_id)">
+            <p v-if="notification.type === 'like'">{{ notification.user_name }} liked your post.</p>
+            <p v-else-if="notification.type === 'comment'">{{ notification.user_name }} commented on your post.</p>
+            <small>{{ formatDate(notification.created_at) }}</small>
+          </div>
+          <button v-if="notifications.length > visibleNotifications.length" @click="loadMoreNotifications"
+            class="see-more-button">See More</button>
         </div>
 
         <!-- User Login/Name -->
@@ -73,7 +95,8 @@
       <!-- Post List -->
       <div class="post-list">
         <button class="status-box mb-8" @click="createNewPost">
-          <img :src="$page.props.auth.user ? `/storage/${$page.props.auth.user.profile_picture}` : '/storage/users/default-image.png'"
+          <img
+            :src="$page.props.auth.user ? `/storage/${$page.props.auth.user.profile_picture}` : '/storage/users/default-image.png'"
             alt="Profile Picture" class="profile-picture" />
           <p class="status-input">What's on your mind?</p>
         </button>
@@ -233,11 +256,17 @@ export default {
   },
   data() {
     return {
+      currentUrl: window.location.href,
       currentUser: this.$page.props.auth.user,
       searchQuery: '',
+
       isNotificationDropdownOpen: false,
       notifications: [],
+      visibleNotifications: [],
       unreadNotifications: 0,
+      page: 1,
+      perPage: 5,
+
       currentTag: null,
       currentPage: this.posts.current_page,
       lastPage: this.posts.last_page,
@@ -299,9 +328,9 @@ export default {
     },
 
     navigateToLogin() {
-      const currentUrl = window.location.href;
 
-      this.$inertia.visit(route("login", { redirect: currentUrl }));
+
+      this.$inertia.visit(route("login", { redirect: this.currentUrl }));
     }
     ,
     navigateToTag(tag) {
@@ -667,8 +696,69 @@ export default {
     },
 
     // handle notifications
-    showNotifications() {
+    // showNotifications() {
+    //   localStorage.setItem('redirect_after_login', route('home'));
+    //   if (!this.currentUser) {
+    //     Swal.fire({
+    //       title: 'Login Required',
+    //       text: 'Log in to see your notifications. Do you want to log in now?',
+    //       icon: 'warning',
+    //       showCancelButton: true,
+    //       confirmButtonText: 'Yes, log in',
+    //       cancelButtonText: 'Cancel',
+    //     }).then((result) => {
+    //       if (result.isConfirmed) {
+    //         this.navigateToLogin();
+    //       }
+    //       else if (result.isDenied) {
+    //         localStorage.removeItem('redirect_after_login')
+    //       }
+    //     });
+    //   } else {
+    //     this.toggleNotificationDropdown(); // Toggle the dropdown
+    //     this.markNotificationsAsRead();
+    //   }
 
+    // },
+    // fetchNotifications(userId) {
+    //   axios.get(`/api/notifications?user_id=${userId}`)
+    //     .then(response => {
+    //       console.log("API Response:", response.data); // Log the full response
+    //       this.notifications = [...response.data]; // Assign the notifications array
+    //       console.log("Updated Notifications:", this.notifications); // Verify the assignment
+    //       this.unreadNotifications = this.notifications.filter(n => !n.read).length;
+    //       console.log(this.unreadNotifications);
+    //     })
+    //     .catch(error => {
+    //       console.error("Error fetching notifications:", error);
+    //       this.notifications = [];
+    //     });
+    // },
+    // markNotificationsAsRead() {
+    //   if (!this.currentUser) {
+    //     console.warn("User is not authenticated.");
+    //     return;
+    //   }
+
+    //   axios.post('/api/notifications/mark-as-read', { user_id: this.currentUser.id })
+    //     .then(() => {
+    //       if (Array.isArray(this.notifications)) {
+    //         this.notifications.forEach(n => n.read = true);
+    //         this.unreadNotifications = 0;
+    //       } else {
+    //         console.warn("Notifications array is not defined.");
+    //       }
+    //     })
+    //     .catch(error => {
+    //       console.error("Error marking notifications as read:", error);
+    //     });
+    // },
+    // toggleNotificationDropdown() {
+    //   this.isNotificationDropdownOpen = !this.isNotificationDropdownOpen;
+    // },
+    //
+
+    showNotifications() {
       if (!this.currentUser) {
         Swal.fire({
           title: 'Login Required',
@@ -683,19 +773,20 @@ export default {
           }
         });
       } else {
-        this.toggleNotificationDropdown(); // Toggle the dropdown
+        this.toggleNotificationDropdown();
+        this.fetchNotifications(this.currentUser.id);
         this.markNotificationsAsRead();
       }
-
     },
     fetchNotifications(userId) {
-      axios.get(`/api/notifications?user_id=${userId}`)
+      
+      axios.get(`/api/notifications?user_id=${userId}&page=${this.page}&per_page=${this.perPage}`)
         .then(response => {
-          console.log("API Response:", response.data); // Log the full response
-          this.notifications = [...response.data]; // Assign the notifications array
-          console.log("Updated Notifications:", this.notifications); // Verify the assignment
+          console.log("API Response:", response.data.data);
+
+          this.notifications = [...this.notifications, ...response.data.data];
+          this.visibleNotifications = this.notifications.slice(0, this.page * this.perPage);
           this.unreadNotifications = this.notifications.filter(n => !n.read).length;
-          console.log(this.unreadNotifications);
         })
         .catch(error => {
           console.error("Error fetching notifications:", error);
@@ -723,6 +814,13 @@ export default {
     },
     toggleNotificationDropdown() {
       this.isNotificationDropdownOpen = !this.isNotificationDropdownOpen;
+    },
+    loadMoreNotifications() {
+      this.page += 1;
+      this.fetchNotifications(this.currentUser.id);
+    },
+    navigateToPost(postId) {
+      this.$inertia.visit(route('posts.show', postId));
     },
   },
   mounted() {
@@ -872,23 +970,40 @@ export default {
 
 .notification-dropdown {
   position: absolute;
-  top: 100%;
   right: 0;
-  background: white;
+  top: 100%;
+  background-color: white;
   border: 1px solid #ccc;
-  width: 300px;
-  max-height: 400px;
+  border-radius: 8px;
+  max-height: 300px;
   overflow-y: auto;
+  width: 300px;
   z-index: 1000;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .notification-item {
   padding: 10px;
   border-bottom: 1px solid #eee;
+  cursor: pointer;
 }
-
+.notification-item:hover {
+  background-color: #f9f9f9;
+}
 .notification-item:last-child {
   border-bottom: none;
+}
+.see-more-button {
+  width: 100%;
+  padding: 10px;
+  color: rgb(59 130 246 / var(--tw-text-opacity, 1));
+  border: none;
+  cursor: pointer;
+}
+
+.see-more-button:hover {
+  
+  text-decoration: underline;
 }
 
 .user-section {

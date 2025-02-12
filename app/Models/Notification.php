@@ -9,12 +9,17 @@ class Notification extends Model
 {
     use HasFactory;
 
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var array
+     */
     protected $fillable = [
-        'user_id',
-        'type',
-        'notifiable_id',
-        'notifiable_type',
-        'read',
+        'user_id',       
+        'post_id',      
+        'type',         
+        'user_name',   
+        'read',             
     ];
 
     /**
@@ -26,10 +31,10 @@ class Notification extends Model
     }
 
     /**
-     * Get the related entity (e.g., Post or Comment).
+     * Get the post related to the notification.
      */
-    public function notifiable()
+    public function post()
     {
-        return $this->morphTo();
+        return $this->belongsTo(Post::class);
     }
 }

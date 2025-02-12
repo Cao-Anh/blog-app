@@ -31,13 +31,15 @@ class LikeController extends Controller
             ]);
 
             
-            $notification = Notification::create([
-                'user_id' => $post->user_id, 
-                'notifiable_id' => $post->id,
-                'notifiable_type' => Post::class,
-                'type' => 'like',
-                'read' => false,
-            ]);
+            if ($post->user_id !== Auth::id()) { 
+                $notification=Notification::create([
+                    'user_id' => $post->user_id, 
+                    'post_id' => $post->id,      
+                    'type' => 'like',            
+                    'user_name' => Auth::user()->name, 
+                    'read' => false,             
+                ]);
+            }
 
             event(new PostLiked($notification));
 

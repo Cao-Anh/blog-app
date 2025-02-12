@@ -7,7 +7,7 @@ use App\Models\Image;
 use App\Models\Post;
 use App\Models\Tag;
 use App\Models\User;
-use App\Models\Notification; // Import the Notification model
+use App\Models\Notification; 
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
@@ -44,7 +44,8 @@ class DatabaseSeeder extends Seeder
         });
 
         // Seed notifications
-        $this->seedNotifications();
+        // $this->seedNotifications();
+        $this->call(NotificationSeeder::class);
     }
 
     private function seedNotifications()
