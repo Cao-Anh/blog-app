@@ -38,7 +38,7 @@ class AuthenticatedSessionController extends Controller
         $request->authenticate();
         $request->session()->regenerate();
 
-        $redirectUrl = session('url.intended', route('dashboard'));
+        $redirectUrl = session('url.intended', route('home'));
         
 
         // Append the page number to the redirect URL

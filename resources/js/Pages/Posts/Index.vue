@@ -18,7 +18,7 @@
             <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
           </svg>
         </button>
-        <input type="text" v-model="searchQuery" @keyup.enter="performSearch" placeholder="Search..." />
+        <input type="text hidden md:block" v-model="searchQuery" @keyup.enter="performSearch" placeholder="Search..." />
         <button @click="performSearch" class="icon-button">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
             <path
@@ -30,27 +30,7 @@
       <!-- Notification and User Section -->
       <div class="navbar-right">
         <!-- Notification Bell -->
-        <!-- <button @click="showNotifications" class="icon-button">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
-            <path
-              d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" />
-          </svg>
-          <span v-if="unreadNotifications > 0" class="notification-badge">{{ unreadNotifications }}</span>
-        </button> -->
-
-        <!-- Notification Dropdown -->
-        <!-- <div v-if="isNotificationDropdownOpen" class="notification-dropdown">
-
-          <div v-if="notifications.length === 0" class="notification-item">
-            <p>Nothing to show.</p>
-          </div>
-          <div v-else v-for="notification in notifications" :key="notification.id" class="notification-item">
-            <p v-if="notification.type === 'like'">Someone liked your post.</p>
-            <p v-else-if="notification.type === 'comment'">Someone commented on your post.</p>
-            <small>{{ formatDate(notification.created_at) }}</small>
-          </div>
-        </div> -->
-        <button @click="showNotifications" class="icon-button">
+        <button @click="showNotifications" ref="bellIcon" class="icon-button notification-button">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
             <path
               d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" />
@@ -59,14 +39,16 @@
         </button>
 
         <!-- Notification Dropdown -->
-        <div v-if="isNotificationDropdownOpen" v-click-outside="toggleNotificationDropdown" class="notification-dropdown">
+        <div v-if="isNotificationDropdownOpen" ref="dropdown" class="notification-dropdown">
           <div v-if="notifications.length === 0" class="notification-item">
-            <p>Nothing to show.</p> 
+            <p>Nothing to show.</p>
           </div>
           <div v-else v-for="notification in visibleNotifications" :key="notification.id" class="notification-item"
             @click="navigateToPost(notification.post_id)">
-            <p v-if="notification.type === 'like'">{{ notification.user_name }} liked your post.</p>
-            <p v-else-if="notification.type === 'comment'">{{ notification.user_name }} commented on your post.</p>
+            <p v-if="notification.type === 'like'">
+            <p class="user-name inline">{{ notification.user_name }}</p> liked your post.</p>
+            <p v-else-if="notification.type === 'comment'">
+            <p class="user-name inline">{{ notification.user_name }}</p> commented on your post.</p>
             <small>{{ formatDate(notification.created_at) }}</small>
           </div>
           <button v-if="notifications.length > visibleNotifications.length" @click="loadMoreNotifications"
@@ -136,7 +118,7 @@
 
           <!-- Post Content -->
           <div class="post-content">
-            <p class="font-bold m">{{ post.title }}</p>
+            <p class="font-bold ">{{ post.title }}</p>
             <p>{{ truncatedText(post.content, post.id) }}
               <button class="text-blue-500" v-if="showSeeMoreButton(post.content, post.id)"
                 @click="toggleText(post.id)">
@@ -243,17 +225,19 @@ import Toastify from 'toastify-js';
 import 'toastify-js/src/toastify.css';
 import Swal from 'sweetalert2';
 import axios from 'axios';
-import { reactive, onMounted } from 'vue';
+import { reactive, nextTick, ref } from 'vue';
 import UserDropdown from '@/Layouts/UserDropdown.vue';
+import { onClickOutside } from '@vueuse/core';
 
 export default {
-  components: { Link, UserDropdown },
+  components: { Link, UserDropdown, },
   props: {
     posts: Object,
     allTags: Array,
     tag: String,
 
   },
+
   data() {
     return {
       currentUrl: window.location.href,
@@ -266,6 +250,7 @@ export default {
       unreadNotifications: 0,
       page: 1,
       perPage: 5,
+
 
       currentTag: null,
       currentPage: this.posts.current_page,
@@ -284,6 +269,7 @@ export default {
       expandedPosts: reactive({}),
     };
   },
+
   created() {
     this.posts.data.forEach(post => {
       post.commentContent = '';
@@ -371,8 +357,32 @@ export default {
       this.$inertia.visit(route('users.posts', { user: authorId }));
     },
     formatDate(date) {
-      return new Date(date).toLocaleString();
+      const now = new Date();
+      const givenDate = new Date(date);
+      const diffInSeconds = Math.floor((now - givenDate) / 1000);
+      const diffInMinutes = Math.floor(diffInSeconds / 60);
+      const diffInHours = Math.floor(diffInMinutes / 60);
+      const diffInDays = Math.floor(diffInHours / 24);
+
+      if (diffInSeconds < 60) {
+        return "Just now";
+      } else if (diffInMinutes < 60) {
+        return `${diffInMinutes}m ago`;
+      } else if (diffInHours < 24) {
+        return `${diffInHours}h ago`;
+      } else if (diffInDays === 1) {
+        return "Yesterday";
+      } else if (diffInDays < 7) {
+        return `${diffInDays}d ago`;
+      } else {
+        return givenDate.toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+          year: now.getFullYear() === givenDate.getFullYear() ? undefined : "numeric",
+        });
+      }
     },
+
     toggleCommentSection(post) {
       post.showComments = !post.showComments;
     },
@@ -694,72 +704,9 @@ export default {
           this.isLoading = false;
         });
     },
-
-    // handle notifications
-    // showNotifications() {
-    //   localStorage.setItem('redirect_after_login', route('home'));
-    //   if (!this.currentUser) {
-    //     Swal.fire({
-    //       title: 'Login Required',
-    //       text: 'Log in to see your notifications. Do you want to log in now?',
-    //       icon: 'warning',
-    //       showCancelButton: true,
-    //       confirmButtonText: 'Yes, log in',
-    //       cancelButtonText: 'Cancel',
-    //     }).then((result) => {
-    //       if (result.isConfirmed) {
-    //         this.navigateToLogin();
-    //       }
-    //       else if (result.isDenied) {
-    //         localStorage.removeItem('redirect_after_login')
-    //       }
-    //     });
-    //   } else {
-    //     this.toggleNotificationDropdown(); // Toggle the dropdown
-    //     this.markNotificationsAsRead();
-    //   }
-
-    // },
-    // fetchNotifications(userId) {
-    //   axios.get(`/api/notifications?user_id=${userId}`)
-    //     .then(response => {
-    //       console.log("API Response:", response.data); // Log the full response
-    //       this.notifications = [...response.data]; // Assign the notifications array
-    //       console.log("Updated Notifications:", this.notifications); // Verify the assignment
-    //       this.unreadNotifications = this.notifications.filter(n => !n.read).length;
-    //       console.log(this.unreadNotifications);
-    //     })
-    //     .catch(error => {
-    //       console.error("Error fetching notifications:", error);
-    //       this.notifications = [];
-    //     });
-    // },
-    // markNotificationsAsRead() {
-    //   if (!this.currentUser) {
-    //     console.warn("User is not authenticated.");
-    //     return;
-    //   }
-
-    //   axios.post('/api/notifications/mark-as-read', { user_id: this.currentUser.id })
-    //     .then(() => {
-    //       if (Array.isArray(this.notifications)) {
-    //         this.notifications.forEach(n => n.read = true);
-    //         this.unreadNotifications = 0;
-    //       } else {
-    //         console.warn("Notifications array is not defined.");
-    //       }
-    //     })
-    //     .catch(error => {
-    //       console.error("Error marking notifications as read:", error);
-    //     });
-    // },
-    // toggleNotificationDropdown() {
-    //   this.isNotificationDropdownOpen = !this.isNotificationDropdownOpen;
-    // },
-    //
-
     showNotifications() {
       if (!this.currentUser) {
+        localStorage.set('redirect_after_login', route('home'))
         Swal.fire({
           title: 'Login Required',
           text: 'Log in to see your notifications. Do you want to log in now?',
@@ -769,17 +716,24 @@ export default {
           cancelButtonText: 'Cancel',
         }).then((result) => {
           if (result.isConfirmed) {
-            this.$inertia.visit(route('login'));
+            this.navigateToLogin();
+          }
+          else if (result.isDenied) {
+            localStorage.removeItem('redirect_after_login');
           }
         });
       } else {
         this.toggleNotificationDropdown();
-        this.fetchNotifications(this.currentUser.id);
-        this.markNotificationsAsRead();
+        if (this.isNotificationDropdownOpen) {
+
+          this.fetchNotifications(this.currentUser.id);
+          this.markNotificationsAsRead();
+        }
+
       }
     },
     fetchNotifications(userId) {
-      
+
       axios.get(`/api/notifications?user_id=${userId}&page=${this.page}&per_page=${this.perPage}`)
         .then(response => {
           console.log("API Response:", response.data.data);
@@ -812,8 +766,23 @@ export default {
           console.error("Error marking notifications as read:", error);
         });
     },
-    toggleNotificationDropdown() {
+    async toggleNotificationDropdown() {
+      // Toggle the dropdown state
       this.isNotificationDropdownOpen = !this.isNotificationDropdownOpen;
+      console.log('togglenoti', this.isNotificationDropdownOpen);
+
+      if (this.isNotificationDropdownOpen) {
+        await nextTick();
+        onClickOutside(
+          this.$refs.dropdown,
+          (event) => {
+            if (this.$refs.bellIcon && !this.$refs.bellIcon.contains(event.target)) {
+              this.isNotificationDropdownOpen = false;
+            }
+          }
+        );
+
+      }
     },
     loadMoreNotifications() {
       this.page += 1;
@@ -822,7 +791,10 @@ export default {
     navigateToPost(postId) {
       this.$inertia.visit(route('posts.show', postId));
     },
+
+
   },
+
   mounted() {
     {
       const redirectUrl = localStorage.getItem('redirect_after_login');
@@ -864,38 +836,14 @@ export default {
       console.warn("Log in to check your notifications.");
     }
 
+
     window.addEventListener('scroll', this.handleScroll);
 
-    this.$nextTick(() => {
-      const scrollPosition = sessionStorage.getItem("scrollPosition");
-      const lastInteractedPost = sessionStorage.getItem("lastInteractedPost");
-      const lastVisitedPage = sessionStorage.getItem("lastVisitedPage");
-
-      if (lastVisitedPage && this.currentPage !== parseInt(lastVisitedPage, 10)) {
-        this.$inertia.visit(route("posts.index", { page: lastVisitedPage }));
-        return;
-      }
-
-      setTimeout(() => {
-        if (scrollPosition) {
-          window.scrollTo({ top: parseInt(scrollPosition, 10), behavior: "smooth" });
-          sessionStorage.removeItem("scrollPosition");
-        }
-
-        if (lastInteractedPost) {
-          const element = document.getElementById(lastInteractedPost);
-          if (element) {
-            element.scrollIntoView({ behavior: "smooth", block: "center" });
-          }
-          sessionStorage.removeItem("lastInteractedPost");
-        }
-        sessionStorage.removeItem("lastVisitedPage")
-      }, 800);
-    });
   },
 
   beforeDestroy() {
     window.removeEventListener('scroll', this.handleScroll);
+
   },
 
 };
@@ -955,17 +903,31 @@ export default {
 
 .notification-button {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
 }
 
 .notification-badge {
-  position: absolute;
-  top: -5px;
-  right: -5px;
+
+  top: 10px;
+  right: 10px;
   background: red;
   color: white;
   border-radius: 50%;
   padding: 2px 6px;
   font-size: 10px;
+  position: absolute;
+  background: red;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate(50%, -50%);
+
 }
 
 .notification-dropdown {
@@ -974,7 +936,7 @@ export default {
   top: 100%;
   background-color: white;
   border: 1px solid #ccc;
-  border-radius: 8px;
+  border-bottom-left-radius: 8px;
   max-height: 300px;
   overflow-y: auto;
   width: 300px;
@@ -987,12 +949,15 @@ export default {
   border-bottom: 1px solid #eee;
   cursor: pointer;
 }
+
 .notification-item:hover {
   background-color: #f9f9f9;
 }
+
 .notification-item:last-child {
   border-bottom: none;
 }
+
 .see-more-button {
   width: 100%;
   padding: 10px;
@@ -1002,18 +967,20 @@ export default {
 }
 
 .see-more-button:hover {
-  
+
   text-decoration: underline;
 }
 
 .user-section {
   display: flex;
   align-items: center;
-  gap: 8px;
+  min-width: 40px;
+  /* gap: 8px; */
 }
 
-.username {
+.user-name {
   font-weight: bold;
+
 }
 
 .login-button {
@@ -1079,17 +1046,25 @@ export default {
 }
 
 /* create post */
+.post-list {
+  max-width: 550px;
+
+  margin: 0 auto;
+}
+
 .status-box {
+  position: relative;
   display: flex;
   align-items: center;
   background: #fff;
   border-radius: 8px;
   padding: 10px 15px;
-  width: 500px;
+  width: 100%;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
 .status-input {
+
   flex: 1;
   border: none;
   outline: none;
@@ -1097,13 +1072,6 @@ export default {
   background: #f0f2f5;
   padding: 10px 15px;
   border-radius: 8px;
-}
-
-/* Existing Post Styles (unchanged) */
-.post-list {
-  max-width: 600px;
-  min-width: 450px;
-  margin: 0 auto;
 }
 
 .post {
@@ -1114,6 +1082,7 @@ export default {
   margin-bottom: 16px;
   padding: 16px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+
 }
 
 .author-section {
@@ -1127,6 +1096,7 @@ export default {
   height: 40px;
   border-radius: 50%;
   margin-right: 12px;
+  flex-shrink: 0;
 }
 
 .author-name {
@@ -1144,6 +1114,7 @@ export default {
 
 .post-content {
   margin-bottom: 12px;
+  max-width: 460px;
 }
 
 .post-images {
@@ -1153,8 +1124,10 @@ export default {
 }
 
 .image {
-  width: 100%;
+  width: auto;
+
   border-radius: 8px;
+  object-fit: cover;
 }
 
 .actions {
@@ -1298,7 +1271,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.25);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1306,7 +1279,7 @@ export default {
 }
 
 .modal-image {
-  max-width: 90%;
+  max-width: 80%;
   max-height: 80%;
   border-radius: 8px;
 }
@@ -1328,16 +1301,16 @@ export default {
   background: none;
   border: none;
   color: #fff;
-  font-size: 10em;
+  font-size: 5em;
   cursor: pointer;
   transform: translateY(-50%);
 }
 
 .prev {
-  left: 30px;
+  left: 3%;
 }
 
 .next {
-  right: 30px;
+  right: 3%;
 }
 </style>
