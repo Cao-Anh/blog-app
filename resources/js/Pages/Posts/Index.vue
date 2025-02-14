@@ -43,16 +43,19 @@
           <div v-if="notifications.length === 0" class="notification-item">
             <p>Nothing to show.</p>
           </div>
-          <div v-else v-for="notification in visibleNotifications" :key="notification.id" class="notification-item"
+          <div v-else v-for="notification in notifications" :key="notification.id" class="notification-item"
             @click="navigateToPost(notification.post_id)">
             <p v-if="notification.type === 'like'">
-            <p class="user-name inline">{{ notification.user_name }}</p> liked your post.</p>
+            <span class="user-name inline">{{ notification.user_name }}</span> liked your post.</p>
             <p v-else-if="notification.type === 'comment'">
-            <p class="user-name inline">{{ notification.user_name }}</p> commented on your post.</p>
+            <span class="user-name inline">{{ notification.user_name }}</span> commented on your post.</p>
             <small>{{ formatDate(notification.created_at) }}</small>
           </div>
-          <button v-if="notifications.length > visibleNotifications.length" @click="loadMoreNotifications"
-            class="see-more-button">See More</button>
+          <!-- <p>{{ visibleNotifications.length }}</p> -->
+          <!-- <p>{{ notifications.length }}</p> -->
+          <button v-if="responseFetchNotif.length>0" @click="loadMoreNotifications"
+            ref="seeMoreNotificationButton" class="see-more-button">See More</button>
+          <p v-if="responseFetchNotif.length==0" class="text-center">no more notifications.</p>
         </div>
 
         <!-- User Login/Name -->
@@ -250,6 +253,7 @@ export default {
       unreadNotifications: 0,
       page: 1,
       perPage: 5,
+      responseFetchNotif: null,
 
 
       currentTag: null,
@@ -704,9 +708,10 @@ export default {
           this.isLoading = false;
         });
     },
-    showNotifications() {
+
+    async showNotifications() {
       if (!this.currentUser) {
-        localStorage.set('redirect_after_login', route('home'))
+        localStorage.setItem('redirect_after_login', route('home'));
         Swal.fire({
           title: 'Login Required',
           text: 'Log in to see your notifications. Do you want to log in now?',
@@ -717,71 +722,62 @@ export default {
         }).then((result) => {
           if (result.isConfirmed) {
             this.navigateToLogin();
-          }
-          else if (result.isDenied) {
+          } else if (result.isDenied) {
             localStorage.removeItem('redirect_after_login');
           }
         });
       } else {
-        this.toggleNotificationDropdown();
-        if (this.isNotificationDropdownOpen) {
-
-          this.fetchNotifications(this.currentUser.id);
-          this.markNotificationsAsRead();
-        }
-
-      }
-    },
-    fetchNotifications(userId) {
-
-      axios.get(`/api/notifications?user_id=${userId}&page=${this.page}&per_page=${this.perPage}`)
-        .then(response => {
-          console.log("API Response:", response.data.data);
-
-          this.notifications = [...this.notifications, ...response.data.data];
-          this.visibleNotifications = this.notifications.slice(0, this.page * this.perPage);
-          this.unreadNotifications = this.notifications.filter(n => !n.read).length;
-        })
-        .catch(error => {
+       
+        try {
+          
+          await this.markNotificationsAsRead();
+          this.toggleNotificationDropdown(); 
+        } catch (error) {
           console.error("Error fetching notifications:", error);
-          this.notifications = [];
-        });
-    },
-    markNotificationsAsRead() {
-      if (!this.currentUser) {
-        console.warn("User is not authenticated.");
-        return;
+        } 
       }
+    },
+    async fetchNotifications(userId) {
+      try {
+        const response = await axios.get(`/api/notifications?user_id=${userId}&page=${this.page}&per_page=${this.perPage}`);
+        this.responseFetchNotif= response.data.data
+        console.log("API Response:", this.responseFetchNotif);
+        console.log(this.responseFetchNotif.length);
 
-      axios.post('/api/notifications/mark-as-read', { user_id: this.currentUser.id })
-        .then(() => {
-          if (Array.isArray(this.notifications)) {
-            this.notifications.forEach(n => n.read = true);
-            this.unreadNotifications = 0;
-          } else {
-            console.warn("Notifications array is not defined.");
-          }
-        })
-        .catch(error => {
-          console.error("Error marking notifications as read:", error);
-        });
+        this.notifications = [...this.notifications, ...this.responseFetchNotif];
+        // this.visibleNotifications = this.notifications.slice(0, this.page * this.perPage);
+        this.unreadNotifications = this.notifications.filter(n => !n.read).length;
+      } catch (error) {
+        console.error("Error fetching notifications:", error);
+        this.notifications = [];
+      }
+    },
+    async markNotificationsAsRead() {
+      try {
+        await axios.post('/api/notifications/mark-as-read', { user_id: this.currentUser.id });
+        if (Array.isArray(this.notifications)) {
+          this.notifications.forEach(n => n.read = true);
+          this.unreadNotifications = 0;
+        } else {
+          console.warn("Notifications array is not defined.");
+        }
+      } catch (error) {
+        console.error("Error marking notifications as read:", error);
+      }
     },
     async toggleNotificationDropdown() {
-      // Toggle the dropdown state
       this.isNotificationDropdownOpen = !this.isNotificationDropdownOpen;
-      console.log('togglenoti', this.isNotificationDropdownOpen);
 
       if (this.isNotificationDropdownOpen) {
         await nextTick();
         onClickOutside(
           this.$refs.dropdown,
           (event) => {
-            if (this.$refs.bellIcon && !this.$refs.bellIcon.contains(event.target)) {
+            if (!this.$refs.seeMoreNotificationButton.contains(event.target) && !this.$refs.bellIcon.contains(event.target)) {
               this.isNotificationDropdownOpen = false;
             }
           }
         );
-
       }
     },
     loadMoreNotifications() {
@@ -793,9 +789,11 @@ export default {
     },
 
 
+
   },
 
   mounted() {
+    this.fetchNotifications(this.currentUser.id);
     {
       const redirectUrl = localStorage.getItem('redirect_after_login');
       console.log('mounted', redirectUrl)
@@ -946,7 +944,6 @@ export default {
 
 .notification-item {
   padding: 10px;
-  border-bottom: 1px solid #eee;
   cursor: pointer;
 }
 

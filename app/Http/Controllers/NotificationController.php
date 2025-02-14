@@ -14,9 +14,7 @@ class NotificationController extends Controller
     {
         // Ensure the user is authenticated
         $user = Auth::user();
-        if (!$user) {
-            return response()->json(['error' => 'Unauthorized'], 401);
-        }
+        
 
         $page = $request->query('page', 1); 
         $perPage = $request->query('per_page', 5); 
