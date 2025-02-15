@@ -13,11 +13,17 @@
       <!-- Search Bar and Home Button -->
 
       <div class="search-bar">
-        <button @click="navigateToHome" class="icon-button mr-10">
+        <!-- home button -->
+        <button @click="navigateToHome" class="icon-button ">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="30" height="30">
             <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
           </svg>
         </button>
+        <!-- Tag Button -->
+        <button @click="toggleDrawer" class="icon-button" id="tag-button">
+          <i class="fa-solid fa-tag icon-button text-xl"></i>
+        </button>
+        <!-- search -->
         <input type="text hidden md:block" v-model="searchQuery" @keyup.enter="performSearch" placeholder="Search..." />
         <button @click="performSearch" class="icon-button">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
@@ -46,16 +52,17 @@
           <div v-else v-for="notification in notifications" :key="notification.id" class="notification-item"
             @click="navigateToPost(notification.post_id)">
             <p v-if="notification.type === 'like'">
-            <span class="user-name inline">{{ notification.user_name }}</span> liked your post.</p>
+              <span class="user-name inline">{{ notification.user_name }}</span> liked your post.
+            </p>
             <p v-else-if="notification.type === 'comment'">
-            <span class="user-name inline">{{ notification.user_name }}</span> commented on your post.</p>
+              <span class="user-name inline">{{ notification.user_name }}</span> commented on your post.
+            </p>
             <small>{{ formatDate(notification.created_at) }}</small>
           </div>
-          <!-- <p>{{ visibleNotifications.length }}</p> -->
-          <!-- <p>{{ notifications.length }}</p> -->
-          <button v-if="responseFetchNotif.length>0" @click="loadMoreNotifications"
-            ref="seeMoreNotificationButton" class="see-more-button">See More</button>
-          <p v-if="responseFetchNotif.length==0" class="text-center">no more notifications.</p>
+
+          <button v-if="responseFetchNotif.length > 0" @click="loadMoreNotifications" ref="seeMoreNotificationButton"
+            class="see-more-button">See More</button>
+          <p v-if="responseFetchNotif.length == 0" class="text-center">no more notifications.</p>
         </div>
 
         <!-- User Login/Name -->
@@ -70,13 +77,30 @@
     <!-- Main Content -->
     <div class="main-content">
       <!-- Left Sidebar for Tags -->
-      <div class="sidebar">
-        <h3><i class="fa-solid fa-tag"></i>Tags</h3>
+      <!-- for desktop -->
+      <div class="sidebar sidebar-desktop">
+        <h3><i class="fa-solid fa-tag text-[#666]"></i>Tags</h3>
         <div class="tags">
           <span v-for="tag in allTags" :key="tag.id" @click="navigateToTag(tag)" class="tag">{{ tag.name }}</span>
         </div>
       </div>
-
+      <!-- for mobile -->
+      <div v-if="isDrawerOpen" @click="toggleDrawer" class="overlay"></div>
+      <div :class="['sidebar sidebar-mobile', { 'sidebar-mobile-open': isDrawerOpen }]">
+        <div class="flex justify-between items-center mb-4">
+          <h3><i class="fa-solid fa-tag text-[#666]"></i>Tags</h3>
+          <!-- Close Button -->
+          <button @click="toggleDrawer" class=" icon-button">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+              <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="tags">
+          <span v-for="tag in allTags" :key="tag.id" @click="navigateToTag(tag)" class="tag">{{ tag.name }}</span>
+        </div>
+      </div>
       <!-- Post List -->
       <div class="post-list">
         <button class="status-box mb-8" @click="createNewPost">
@@ -137,7 +161,7 @@
 
           <!-- Tags -->
           <div v-if="post.tags.length > 0" class="tags mb-2">
-            <span><i class="fa-solid fa-tag"></i></span>
+            <span><i class="fa-solid fa-tag text-[#666]"></i></span>
             <span v-for="tag in post.tags" :key="tag.id" @click="navigateToTag(tag)" class="tag">{{ tag.name }}</span>
           </div>
 
@@ -189,8 +213,8 @@
           <!-- Comment Section -->
           <div v-if="post.showComments" class="comment-section">
             <form @submit.prevent="submitComment(post)">
-              <textarea v-model="post.commentContent" placeholder="Add a comment"></textarea>
-              <button class="mb-3" type="submit">Send <i class="fa-solid fa-paper-plane fa-rotate-by"
+              <textarea  class="bg-[#f0f2f5]" v-model="post.commentContent" placeholder="Add a comment"></textarea>
+              <button class="mb-3" type="submit">Send <i class="fa-solid fa-paper-plane fa-rotate-by text-[#666] "
                   style="--fa-rotate-angle: 45deg;"></i></button>
             </form>
 
@@ -267,7 +291,7 @@ export default {
       currentImage: "",
       currentImageIndex: 0,
 
-
+      isDrawerOpen: false,
 
       maxLength: 50,
       expandedPosts: reactive({}),
@@ -282,6 +306,10 @@ export default {
   },
 
   methods: {
+    toggleDrawer() {
+      this.isDrawerOpen = !this.isDrawerOpen;
+      console.log('drawer',this.isDrawerOpen)
+    },
     navigateToHome() {
       this.$inertia.visit('/');
     },
@@ -727,20 +755,20 @@ export default {
           }
         });
       } else {
-       
+
         try {
-          
+
           await this.markNotificationsAsRead();
-          this.toggleNotificationDropdown(); 
+          this.toggleNotificationDropdown();
         } catch (error) {
           console.error("Error fetching notifications:", error);
-        } 
+        }
       }
     },
     async fetchNotifications(userId) {
       try {
         const response = await axios.get(`/api/notifications?user_id=${userId}&page=${this.page}&per_page=${this.perPage}`);
-        this.responseFetchNotif= response.data.data
+        this.responseFetchNotif = response.data.data
         console.log("API Response:", this.responseFetchNotif);
         console.log(this.responseFetchNotif.length);
 
@@ -877,6 +905,12 @@ export default {
   width: auto;
 }
 
+@media (min-width: 1001px) {
+  #tag-button {
+    display: none;
+  }
+}
+
 .search-bar {
   display: flex;
   align-items: center;
@@ -896,7 +930,7 @@ export default {
 .navbar-right {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
 }
 
 .notification-button {
@@ -1005,9 +1039,6 @@ export default {
 .sidebar {
   position: fixed;
   top: 60px;
-  left: 0;
-  width: 20%;
-  height: 100vh;
   background: #fff;
   border-right: 1px solid #ddd;
   padding: 16px;
@@ -1040,6 +1071,57 @@ export default {
 .tag:hover {
   background: #ddd;
   color: #000;
+}
+
+@media (max-width: 1000px) {
+  .sidebar-desktop {
+    display: none;
+  }
+}
+
+.sidebar-desktop {
+
+  left: 0;
+  width: 20%;
+  height: 100vh;
+}
+
+.sidebar-mobile {
+  width: 250px;
+  position: fixed;
+  top: 60px;
+  left: -250px;
+  height: 100vh;
+
+  transition: left 0.3s ease;
+  z-index: 1000;
+}
+
+ .sidebar-mobile-open {
+  left: 0;
+}
+
+
+/* .sidebar-mobile-open::before {
+  content: '';
+  position: fixed;
+  top: 60px;
+  left: 251px;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 998;
+}  */
+
+.overlay {
+  content: '';
+  position: fixed;
+  top: 60px;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 999;
 }
 
 /* create post */
@@ -1205,19 +1287,23 @@ export default {
 }
 
 .icon-button {
-  background: none;
+  height: 40px;
+  background: #f0f0f0;
+  color: #666;
   border: none;
+  border-radius: 4px;
+
   cursor: pointer;
   padding: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #666;
-  transition: color 0.2s;
+  
+  transition: background 0.2s, color 0.2s;
 }
 
 .icon-button:hover {
-  color: #1877f2;
+  background: #ddd;
 }
 
 .icon-button svg {
