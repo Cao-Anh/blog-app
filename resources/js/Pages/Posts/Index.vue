@@ -89,7 +89,6 @@
       <div :class="['sidebar sidebar-mobile', { 'sidebar-mobile-open': isDrawerOpen }]">
         <div class="flex justify-between items-center mb-4">
           <h3><i class="fa-solid fa-tag text-[#666]"></i>Tags</h3>
-          <!-- Close Button -->
           <button @click="toggleDrawer" class=" icon-button">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
               <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -102,7 +101,27 @@
         </div>
       </div>
       <!-- Post List -->
+
       <div class="post-list">
+        <!-- user info -->
+        <div v-if="$page.props.auth.user" class="user-info mb-20">
+          <div class="profile-picture-bio flex justify-between ">
+
+            <img :src="`/storage/${$page.props.auth.user.profile_picture}`" alt="Profile Picture"
+              class="profile-picture" />
+            <a :href="route('profile.edit')" class=" edit-button pb-10">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16">
+                <path
+                  d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
+              </svg>
+            </a>
+          </div>
+          <div class="user-details">
+            <h2 class="user-name">{{ $page.props.auth.user.name }}</h2>
+            <p class="username">({{ $page.props.auth.user.username }})</p>
+            <p class="bio">{{ $page.props.auth.user.bio }}</p>
+          </div>
+        </div>
         <button class="status-box mb-8" @click="createNewPost">
           <img
             :src="$page.props.auth.user ? `/storage/${$page.props.auth.user.profile_picture}` : '/storage/users/default-image.png'"
@@ -115,7 +134,7 @@
           <div
             v-if="$page.props.auth.user && ($page.props.auth.user.id === post.user_id || $page.props.auth.user.role === 'admin')"
             class="admin-actions">
-            <button @click="editPost(post)" class="icon-button">
+            <button @click="editPost(post)" class="edit-button">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16">
                 <path
                   d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
@@ -133,7 +152,7 @@
           <div class="author-section">
             <img
               :src="post.author?.profile_picture ? `/storage/${post.author.profile_picture}` : '/images/default-profile.png'"
-              alt="Profile Picture" class="profile-picture" />
+              alt="Profile Picture" class="profile-picture" @click="openProfilePictureModal(post)" />
 
             <div class="author-info">
               <span class="author-name" @click="navigateToAuthorPosts(post.author.id)" style="cursor: pointer;">
@@ -173,7 +192,7 @@
                 @click="openImageModal(post, 0)" />
 
               <!-- Additional Images Overlay -->
-              <div v-if="post.images.length > 1" class="extra-images-overlay" @click="openImageModal(post, 1)">
+              <div v-if="post.images.length > 1" class="extra-images-overlay" @click="openImageModal(post, 0)">
                 +{{ post.images.length - 1 }}
               </div>
             </div>
@@ -213,7 +232,7 @@
           <!-- Comment Section -->
           <div v-if="post.showComments" class="comment-section">
             <form @submit.prevent="submitComment(post)">
-              <textarea  class="bg-[#f0f2f5]" v-model="post.commentContent" placeholder="Add a comment"></textarea>
+              <textarea class="bg-[#f0f2f5]" v-model="post.commentContent" placeholder="Add a comment"></textarea>
               <button class="mb-3" type="submit">Send <i class="fa-solid fa-paper-plane fa-rotate-by text-[#666] "
                   style="--fa-rotate-angle: 45deg;"></i></button>
             </form>
@@ -308,7 +327,7 @@ export default {
   methods: {
     toggleDrawer() {
       this.isDrawerOpen = !this.isDrawerOpen;
-      console.log('drawer',this.isDrawerOpen)
+      console.log('drawer', this.isDrawerOpen)
     },
     navigateToHome() {
       this.$inertia.visit('/');
@@ -622,7 +641,6 @@ export default {
         }
 
         const response = await axios.get(url);
-        console.log('API Response:', response);
 
         if (Array.isArray(response.data.data)) {
           this.visiblePosts = [...this.visiblePosts, ...response.data.data];
@@ -648,6 +666,11 @@ export default {
       this.modalImages = post.images.map((image) => `/storage/${image.path}`);
       this.currentImageIndex = index;
       this.currentImage = this.modalImages[index];
+      this.isModalOpen = true;
+      window.addEventListener("keydown", this.handleKeydown);
+    },
+    openProfilePictureModal(post) {
+      this.currentImage = `/storage/${post.author.profile_picture}`
       this.isModalOpen = true;
       window.addEventListener("keydown", this.handleKeydown);
     },
@@ -769,8 +792,8 @@ export default {
       try {
         const response = await axios.get(`/api/notifications?user_id=${userId}&page=${this.page}&per_page=${this.perPage}`);
         this.responseFetchNotif = response.data.data
-        console.log("API Response:", this.responseFetchNotif);
-        console.log(this.responseFetchNotif.length);
+        // console.log("API Response:", this.responseFetchNotif);
+        // console.log(this.responseFetchNotif.length);
 
         this.notifications = [...this.notifications, ...this.responseFetchNotif];
         // this.visibleNotifications = this.notifications.slice(0, this.page * this.perPage);
@@ -821,10 +844,11 @@ export default {
   },
 
   mounted() {
-    this.fetchNotifications(this.currentUser.id);
+
+
     {
       const redirectUrl = localStorage.getItem('redirect_after_login');
-      console.log('mounted', redirectUrl)
+      // console.log('mounted', redirectUrl)
       if (redirectUrl) {
         localStorage.removeItem('redirect_after_login');
         this.$inertia.visit(redirectUrl);
@@ -837,11 +861,14 @@ export default {
       }
     }
     if (this.currentUser) {
-      console.log(`Listening for notifications on: notifications.${this.currentUser.id}`);
+      this.fetchNotifications(this.currentUser.id);
+
+
+      // console.log(`Listening for notifications on: notifications.${this.currentUser.id}`);
 
       window.Echo.private(`notifications.${this.currentUser.id}`)
         .listen('.comment.added', (e) => {
-          console.log('Received Comment Notification:', e); // Debugging log
+          // console.log('Received Comment Notification:', e); // Debugging log
           if (e.notification) {
             this.notifications.unshift(e.notification);
             this.unreadNotifications++;
@@ -850,7 +877,7 @@ export default {
           }
         })
         .listen('.post.liked', (e) => {
-          console.log('Received Like Notification:', e); // Debugging log
+          // console.log('Received Like Notification:', e); // Debugging log
           if (e.notification) {
             this.notifications.unshift(e.notification);
             this.unreadNotifications++;
@@ -1097,7 +1124,7 @@ export default {
   z-index: 1000;
 }
 
- .sidebar-mobile-open {
+.sidebar-mobile-open {
   left: 0;
 }
 
@@ -1122,6 +1149,50 @@ export default {
   height: 100%;
   background-color: rgba(0, 0, 0, 0.5);
   z-index: 999;
+}
+
+/* user info */
+.user-info {
+  padding: 16px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background-color: #f9f9f9;
+  /* text-align: center; */
+}
+
+.profile-picture-bio {
+  margin-bottom: 10px;
+}
+
+.profile-picture-bio img {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  border: 2px solid #ccc;
+  object-fit: cover;
+  /* Ensures the image keeps its aspect ratio */
+}
+
+.user-details {
+  /* text-align: center; */
+}
+
+.user-name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.username {
+  margin: 0;
+  font-size: 14px;
+  color: #555;
+}
+
+.bio {
+  margin: 5px 0 0;
+  font-size: 14px;
+  color: #333;
 }
 
 /* create post */
@@ -1285,6 +1356,25 @@ export default {
 .delete-button svg {
   fill: currentColor;
 }
+.edit-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+  transition: color 0.2s;
+}
+
+.edit-button:hover {
+  color: #333;
+}
+
+.edit-button svg {
+  fill: currentColor;
+}
 
 .icon-button {
   height: 40px;
@@ -1298,7 +1388,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  
+
   transition: background 0.2s, color 0.2s;
 }
 
